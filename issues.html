@@ -129,13 +129,13 @@ d3.json("issues.json", function(data) {
       .style("stroke", "ff000000")
       .style("fill", "transparent")
 
-  topics.append("text")
-      .datum(lastValue)
-      .attr("transform", function(d) { return "translate(" + width + "," + y(d.value.count) + ")"; })
-      .attr("x", 10)
-      .attr("dy", ".35em")
-      .style("fill", function(d){return color(d.name)})
-      .text(function(d) { return d.name + ' ' + d3.format('s')(d.value.count) });
+  // topics.append("text")
+  //     .datum(lastValue)
+  //     .attr("transform", function(d) { return "translate(" + width + "," + y(d.value.count) + ")"; })
+  //     .attr("x", 10)
+  //     .attr("dy", ".35em")
+  //     .style("fill", function(d){return color(d.name)})
+  //     .text(function(d) { return d.name + ' ' + d3.format('s')(d.value.count) });
   
       $('svg circle').tipsy({ 
               gravity: 'w', 

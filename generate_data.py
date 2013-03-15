@@ -30,7 +30,7 @@ def get_link(req, key="next"):
 def fetch_all(url):
     o = []
     http = tornado.httpclient.HTTPClient()
-    for x in range(50):
+    for x in range(80):
         resp = http.fetch(url)
         data = json.loads(resp.body)
         logging.debug('got %d records', len(data))
@@ -54,6 +54,8 @@ def run():
     endpoint = endpoint % tornado.options.options.repo
     url = endpoint + urllib.urlencode(dict(access_token=token, per_page=100, filter='all', state='closed'))
     raw_issues = fetch_all(url)
+    url = endpoint + urllib.urlencode(dict(access_token=token, per_page=100, filter='all', state='open'))
+    raw_issues += fetch_all(url)
     logging.debug(len(raw_issues))
     issue_data = [get_issue_data(x) for x in raw_issues]
     
@@ -67,7 +69,7 @@ def run():
                 dates[date][label['name']] += 1
     
     for date, label_counts in dates.items():
-        print json.dumps(dict(date=date, label_counts=label_counts))
+        print ",",json.dumps(dict(date=date, label_counts=label_counts))
 
 if __name__ == "__main__":
     tornado.options.define("repo", default=None, type=str, help="user/repo to query")
