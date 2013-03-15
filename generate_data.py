@@ -14,7 +14,7 @@ def get_issue_data(issue):
     if issue['state'] == 'closed':
         closed_at = datetime.datetime.strptime( issue["closed_at"], "%Y-%m-%dT%H:%M:%SZ" )
     else:
-        closed_at = datetime.datetime.utcnow()
+        closed_at = datetime.datetime.utcnow() + datetime.timedelta(days=1)
     return dict(created_at=created_at, closed_at=closed_at, labels=issue['labels'])
     
 def get_link(req, key="next"):
