@@ -65,11 +65,14 @@ def run():
     dates = defaultdict(newrow)
     for issue in issue_data:
         for date in get_issue_days(issue):
+            dates[date]['all'] += 1
             for label in issue['labels']:
                 dates[date][label['name']] += 1
     
+    o = []
     for date, label_counts in dates.items():
-        print ",",json.dumps(dict(date=date, label_counts=label_counts))
+        o.append(dict(date=date, label_counts=label_counts))
+    print json.dumps(o)
 
 if __name__ == "__main__":
     tornado.options.define("repo", default=None, type=str, help="user/repo to query")
