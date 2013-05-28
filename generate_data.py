@@ -31,7 +31,11 @@ def fetch_all(url):
     o = []
     http = tornado.httpclient.HTTPClient()
     for x in range(80):
-        resp = http.fetch(url)
+        try:
+            resp = http.fetch(url, user_agent='issue fetcher (tornado/httpclient)')
+        except tornado.httpclient.HTTPError, e:
+            logging.error('failed %r %r', e.response.body, e.response)
+            raise e
         data = json.loads(resp.body)
         logging.debug('got %d records', len(data))
         next_url = get_link(resp, 'next')
@@ -53,8 +57,10 @@ def run():
     token = tornado.options.options.access_token
     endpoint = endpoint % tornado.options.options.repo
     url = endpoint + urllib.urlencode(dict(access_token=token, per_page=100, filter='all', state='closed'))
+    logging.info('fetching closed issues for %r', tornado.options.options.repo)
     raw_issues = fetch_all(url)
     url = endpoint + urllib.urlencode(dict(access_token=token, per_page=100, filter='all', state='open'))
+    logging.info('fetching open issues for %r', tornado.options.options.repo)
     raw_issues += fetch_all(url)
     logging.debug(len(raw_issues))
     issue_data = [get_issue_data(x) for x in raw_issues]

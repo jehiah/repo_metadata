@@ -84,7 +84,8 @@ d3.json("issues.json", function(data) {
     d.value.sort(function(a, b){if (a.dt > b.dt) {return 1;} return -1})
   })
   
-  x.domain(d3.extent(data, function(d){return d.dt; })).nice();
+  // d3.extent(all_entries, function(d){return d.dt; })
+  x.domain([new Date(1333238400 * 1000), new Date()]).nice();
   y.domain([0, d3.max(issueData, function(d){return d3.max(d.value, function(dd){return dd.count});})])
 
   svg.append("g")
