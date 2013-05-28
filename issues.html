@@ -38,11 +38,11 @@ var YMD = d3.time.format("%Y-%m-%d")
 
 var margin = {top: 15, right: 140, bottom: 50, left: 75},
     width = 1400 - margin.left - margin.right,
-    height = 800 - margin.top - margin.bottom;
+    height = 1200 - margin.top - margin.bottom;
 
 var svg = d3.select("#svg").append("svg")
-    .attr("width", 1400)
-    .attr("height", 800)
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
   .append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
@@ -68,6 +68,11 @@ var line = d3.svg.line()
 var color = d3.scale.category20();
 
 d3.json("issues.json", function(data) {
+  var start_date = new Date(1362096000 * 1000)
+  var end_date = new Date();
+  end_date = new Date(end_date.getTime() - 86400000);
+  
+  data = data.filter(function(d){dd= YMD.parse(d.date); return dd > start_date && dd < end_date});
   var all_entries = []
   data.forEach(function(d){
     d.dt = YMD.parse(d.date);
@@ -84,8 +89,8 @@ d3.json("issues.json", function(data) {
     d.value.sort(function(a, b){if (a.dt > b.dt) {return 1;} return -1})
   })
   
-  // d3.extent(all_entries, function(d){return d.dt; })
-  x.domain([new Date(1333238400 * 1000), new Date()]).nice();
+  x.domain(d3.extent(all_entries, function(d){return d.dt;})).nice();
+  // x.domain([new Date(1333238400 * 1000), new Date()]).nice();
   y.domain([0, d3.max(issueData, function(d){return d3.max(d.value, function(dd){return dd.count});})])
 
   svg.append("g")
@@ -130,13 +135,13 @@ d3.json("issues.json", function(data) {
       .style("stroke", "ff000000")
       .style("fill", "transparent")
 
-  // topics.append("text")
-  //     .datum(lastValue)
-  //     .attr("transform", function(d) { return "translate(" + width + "," + y(d.value.count) + ")"; })
-  //     .attr("x", 10)
-  //     .attr("dy", ".35em")
-  //     .style("fill", function(d){return color(d.name)})
-  //     .text(function(d) { return d.name + ' ' + d3.format('s')(d.value.count) });
+  topics.append("text")
+      .datum(lastValue)
+      .attr("transform", function(d) { return "translate(" + width + "," + y(d.value.count) + ")"; })
+      .attr("x", 10)
+      .attr("dy", ".35em")
+      .style("fill", function(d){return color(d.name)})
+      .text(function(d) { return d.name + ' ' + d3.format('s')(d.value.count) });
   
       $('svg circle').tipsy({ 
               gravity: 'w', 
