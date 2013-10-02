@@ -8,11 +8,14 @@ import datetime
 
 endpoint = "https://api.github.com/repos/%s/issues?"
 
+def _github_dt(s):
+    return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
+
 # return start, end, [labels]
 def get_issue_data(issue):
-    created_at = datetime.datetime.strptime( issue["created_at"], "%Y-%m-%dT%H:%M:%SZ" )
+    created_at = _github_dt(issue["created_at"])
     if issue['state'] == 'closed':
-        closed_at = datetime.datetime.strptime( issue["closed_at"], "%Y-%m-%dT%H:%M:%SZ" )
+        closed_at = _github_dt(issue["closed_at"])
     else:
         closed_at = datetime.datetime.utcnow() + datetime.timedelta(days=1)
     return dict(created_at=created_at, closed_at=closed_at, labels=issue['labels'])
