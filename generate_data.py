@@ -2,6 +2,7 @@ import tornado.httpclient
 import tornado.options
 import simplejson as json
 import logging
+import os
 import urllib
 from collections import defaultdict
 import datetime
@@ -43,6 +44,7 @@ def fetch_all(url):
         logging.debug('got %d records', len(data))
         next_url = get_link(resp, 'next')
         o.extend(data)
+        cache_issues(data)
         if next_url:
             url = next_url
         else:
@@ -54,6 +56,16 @@ def get_issue_days(issue):
     for x in range(delta.days):
         dt = issue['created_at'] + datetime.timedelta(days=x)
         yield dt.strftime('%Y-%m-%d')
+
+def cache_issues(raw_issues):
+    if not os.path.exists(tornado.options.options.issue_cache_dir):
+        os.makedirs(tornado.options.options.issue_cache_dir)
+    for issue in raw_issues:
+        filename = os.path.join(tornado.options.options.issue_cache_dir, "%d.json" % issue['number'])
+        if os.path.exists(filename):
+            os.unlink(filename)
+        logging.info('creating %s', filename)
+        open(filename, 'w').write(json.dumps(issue))
 
 def run():
     global endpoint
@@ -86,6 +98,7 @@ def run():
 if __name__ == "__main__":
     tornado.options.define("repo", default=None, type=str, help="user/repo to query")
     tornado.options.define("access_token", type=str, default=None, help="github access_token")
+    tornado.options.define("issue_cache_dir", type=str, default="issue_cache", help="directory to cache per-issue json files")
     tornado.options.parse_command_line()
     
     run()
