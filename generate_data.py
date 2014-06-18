@@ -3,6 +3,7 @@ import tornado.options
 import simplejson as json
 import logging
 import os
+import glob
 import urllib
 from collections import defaultdict
 import datetime
@@ -79,6 +80,19 @@ def run():
     raw_issues += fetch_all(url)
     logging.debug(len(raw_issues))
     issue_data = [get_issue_data(x) for x in raw_issues]
+    run_issues(issue_data)
+
+def cached_issues():
+    for filename in glob.glob(tornado.options.options.issue_cache_dir + '/*.json'):
+        f = open(filename, 'r')
+        data = json.loads(f.read())
+        f.close()
+        yield get_issue_data(data)
+
+def run_cached():
+    run_issues(cached_issues())
+
+def run_issues(issue_data):
     
     def newrow():
         return defaultdict(int)
@@ -99,6 +113,10 @@ if __name__ == "__main__":
     tornado.options.define("repo", default=None, type=str, help="user/repo to query")
     tornado.options.define("access_token", type=str, default=None, help="github access_token")
     tornado.options.define("issue_cache_dir", type=str, default="issue_cache", help="directory to cache per-issue json files")
+    tornado.options.define("use_cache", type=bool, default=False)
     tornado.options.parse_command_line()
     
-    run()
+    if tornado.options.options.use_cache:
+        run_cached()
+    else:
+        run()
