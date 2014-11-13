@@ -32,10 +32,12 @@ import glob
 import logging
 from collections import defaultdict, namedtuple
 import datetime
+from textstat.textstat import textstat
+import re
 
 from formatters import _github_dt
 
-Feature = namedtuple('Feature', ['feature', 'user', 'count'])
+Feature = namedtuple('Feature', ['feature', 'user', 'value'])
         
 def process_comment(comment):
     login = comment["user"]["login"]
@@ -46,6 +48,8 @@ def process_comment(comment):
         yield Feature('RFR', login, 1)
     if "RFM" in body and "not RFM" not in body:
         yield Feature("RFM", login, 1)
+    if "LGTM" in body:
+        yield Feature("LGTM", login, 1)
     if r"```" in body:
         yield Feature("code_block", login, 1)
     if r"@" in body:
@@ -54,7 +58,35 @@ def process_comment(comment):
         yield Feature("image", login, 1)
     if " [ ]" in body or " [x]" in body:
         yield Feature("checklist", login, 1)
+    for field in [":thumbsup:", "+1", ":ship:", ":shipit:", ":rocket:"]:
+        if field in body:
+            yield Feature(field, login, 1)
+    
+    txt = _clean_body(body)
+    if not txt:
+        return
+    # yield Feature("avg_sentances_per_comment", login, textstat.sentence_count(txt))
+    yield Feature("sentances", login, textstat.sentence_count(txt))
+
+    if 'https://' in txt or 'http://' in txt:
+        yield Feature('with_link', login, 1)
+    issues = re.findall("#[0-9]{4,5}", txt)
+    if issues:
+        yield Feature("issue_crosslink", login, len(issues))
         
+
+    # print login, txt.encode('utf-8')
+    
+def _clean_body(t):
+    t = re.sub('```.*?```', '', t, flags=re.MULTILINE|re.DOTALL)
+    t = re.sub('\!\[.+\]\(.+\)', '', t, flags=re.MULTILINE|re.DOTALL)
+    t = re.sub('(RFR|RFM|LGTM|:thumbsup:)', '', t)
+    return t
+            
+def combine_features(feature, values):
+    if feature == "avg_sentances_per_comment":
+        return sum(values)/len(values)
+    return sum(values)
         
 
 class Summary(object):
@@ -69,18 +101,19 @@ class Summary(object):
             self.comments.append(comment)
     
     def process_features(self):
-        d = defaultdict(lambda :defaultdict(int))
+        d = defaultdict(lambda :defaultdict(list))
         features = set()
         for comment in self.comments:
             for f in process_comment(comment):
                 features.add(f.feature)
-                d[f.user][f.feature] += f.count
+                d[f.user][f.feature].append(f.value)
         
         for user, user_data in sorted(d.items()):
             print "*" * 10
             print user.upper()
             
-            for count, feature in sorted([[count, feature] for feature, count in user_data.items()], reverse=True):
+            data = [[combine_features(feature, values), feature] for feature, values in user_data.items()]
+            for count, feature in sorted(data, reverse=True):
                 print "%3d" % count, feature
 
 
