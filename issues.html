@@ -69,6 +69,7 @@ var color = d3.scale.category20();
 
 d3.json("issues.json", function(data) {
   var start_date = new Date(1362096000 * 1000)
+  // start_date = new Date(1330560000 * 1000)
   var end_date = new Date();
   end_date = new Date(end_date.getTime() - 86400000);
   
