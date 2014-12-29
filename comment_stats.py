@@ -65,8 +65,8 @@ def process_comment(comment):
     txt = _clean_body(body)
     if not txt:
         return
-    # yield Feature("avg_sentances_per_comment", login, textstat.sentence_count(txt))
-    yield Feature("sentances", login, textstat.sentence_count(txt))
+    # yield Feature("avg_sentences_per_comment", login, textstat.sentence_count(txt))
+    yield Feature("sentences", login, textstat.sentence_count(txt))
 
     if 'https://' in txt or 'http://' in txt:
         yield Feature('with_link', login, 1)
@@ -84,7 +84,7 @@ def _clean_body(t):
     return t
             
 def combine_features(feature, values):
-    if feature == "avg_sentances_per_comment":
+    if feature == "avg_sentences_per_comment":
         return sum(values)/len(values)
     return sum(values)
         
