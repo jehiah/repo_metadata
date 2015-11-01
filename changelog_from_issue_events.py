@@ -53,34 +53,64 @@ def fetch_all(url, limit=None):
             break
     return o
 
+def _is_event_related(event, actor):
+    if not actor:
+        return True
+    # if event['actor']['login'] == actor:
+    #     return True
+    issue = event.get('issue') or {}
+    if (issue.get('assignee') or {}).get('login') == actor:
+        return True
+    if (issue.get('user') or {}).get('login') == actor:
+        return True
+    return False
+
 def event_summary(events):
     issues = defaultdict(list)
+    min_dt = datetime.datetime.strptime(tornado.options.options.min_dt, '%Y-%m-%d')
     for event in events:
         issue_number = event.get('issue',{}).get('number')
         if not issue_number:
             logging.warning('no issue number in %r', event)
             continue
         
-        if tornado.options.options.actor and event['actor']['login'] != tornado.options.options.actor:
+        dt = _github_dt(event['created_at'])
+        if dt < min_dt:
             continue
+        
+        if not _is_event_related(event, tornado.options.options.actor):
+            continue
+
         if event['event'] in tornado.options.options.skip_event_type:
             continue
         
         d = dict(
-            dt=_github_dt(event['created_at']),
+            dt=dt,
             action=event['event'],
             actor=event['actor']['login'],
             issue_number=issue_number,
             issue_state=event['issue']['state'],
             title=event['issue']['title'],
+            sort_key = event['issue']['title'].split()[0],
+            state=event['issue']['state'],
+            labels=[x['name'] for x in event['issue']['labels']],
         )
         issues[issue_number].append(d)
+        # put oldest first
+        issues[issue_number].sort(key=itemgetter('dt'), reverse=True)
 
-    for issue_number, data in issues.items():
-        data.sort(key=itemgetter('dt'))
+    sorted_date = sorted([[e[0]['sort_key'], i, e] for i, e in issues.items()])
+
+    for sort_key, issue_number, data in sorted_date:
+        # print "%s %r" % (issue_number, map(str, [e['dt'] for e in data]))
         title = data[0]['title']
-        states =  ", ".join([x['action'] for x in data])
-        print " * [#%s](https://github.com/%s/issues/%s) %s (%s)" % (issue_number, tornado.options.options.repo, issue_number, title, states)
+        actions = [x['action'] for x in data]
+        state = data[0]['state'].upper()
+        if state == "OPEN" and "RFR" in data[0]['labels']:
+            state = "RFR"
+        if state == "CLOSED" and "merged" in actions:
+            state = "MERGED"
+        print " * [#%s](https://github.com/%s/issues/%s) %s %s" % (issue_number, tornado.options.options.repo, issue_number, state, title)
 
 def run():
     global endpoint
@@ -89,19 +119,26 @@ def run():
     url = endpoint + urllib.urlencode(dict(access_token=token, per_page=100, direction="desc", sort="created"))
     logging.info('fetching events for %r', tornado.options.options.repo)
     raw_events = fetch_all(url, limit=tornado.options.options.limit)
-    logging.debug(len(raw_events))
+    date_ranges = [_github_dt(event['created_at']) for event in raw_events]
+    logging.info("%d events from %s to %s", len(raw_events), min(date_ranges), max(date_ranges))
     event_summary(raw_events)
 
 
 if __name__ == "__main__":
+    min_dt = datetime.datetime.utcnow().replace(hour=0,minute=0)
+    if min_dt.isoweekday() < 3:
+        min_dt -= datetime.timedelta(days=7)
+    min_dt -= datetime.timedelta(days=min_dt.isoweekday()-1)
+    
     tornado.options.define("repo", default=None, type=str, help="user/repo to query")
     tornado.options.define("access_token", type=str, default=None, help="github access_token")
-    tornado.options.define("comment_cache_dir", type=str, default="comment_cache", help="directory to cache comments")
-    tornado.options.define("limit", default=None, type=int, help="max number of records to fetch")
-    tornado.options.define("timerange", default=14, type=int, help="max number of (recent) days to generate a summary for")
+    tornado.options.define("limit", default=1100, type=int, help="max number of records to fetch")
+    tornado.options.define("min_dt", default=min_dt.strftime("%Y-%m-%d"), type=str, help="YYYY-MM-DD as start of changelog")
     tornado.options.define("actor", default=None, type=str, help="filter to events for this user")
     tornado.options.define("skip_event_type", default=["labeled", "head_ref_deleted", "referenced", "subscribed"], multiple=True)
     tornado.options.parse_command_line()
+    
+    logging.info('min_dt = %s', tornado.options.options.min_dt)
     
     assert tornado.options.options.repo
     run()
