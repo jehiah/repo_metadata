@@ -65,9 +65,8 @@ def _is_event_related(event, actor):
         return True
     return False
 
-def event_summary(events):
+def event_summary(events, min_dt, max_dt):
     issues = defaultdict(list)
-    min_dt = datetime.datetime.strptime(tornado.options.options.min_dt, '%Y-%m-%d')
     for event in events:
         issue_number = event.get('issue',{}).get('number')
         if not issue_number:
@@ -77,11 +76,13 @@ def event_summary(events):
         dt = _github_dt(event['created_at'])
         if dt < min_dt:
             continue
+        if dt > max_dt:
+            continue
         
         if not _is_event_related(event, tornado.options.options.actor):
             continue
 
-        if event['event'] in tornado.options.options.skip_event_type:
+        if tornado.options.options.skip_event_type and event['event'] in tornado.options.options.skip_event_type:
             continue
         
         d = dict(
@@ -120,8 +121,15 @@ def run():
     logging.info('fetching events for %r', tornado.options.options.repo)
     raw_events = fetch_all(url, limit=tornado.options.options.limit)
     date_ranges = [_github_dt(event['created_at']) for event in raw_events]
+    min_dt = datetime.datetime.strptime(tornado.options.options.min_dt, '%Y-%m-%d')
+    max_dt = datetime.datetime.strptime(tornado.options.options.max_dt, '%Y-%m-%d').replace(hour=23, minute=59)
+
     logging.info("%d events from %s to %s", len(raw_events), min(date_ranges), max(date_ranges))
-    event_summary(raw_events)
+    print "---"
+    print ""
+    print "**PR ChangeLog (from %s to %s)**" % (min_dt.strftime('%Y-%m-%d %A'), max_dt.strftime('%Y-%m-%d %A'))
+    print ""
+    event_summary(raw_events, min_dt, max_dt)
 
 
 if __name__ == "__main__":
@@ -129,11 +137,13 @@ if __name__ == "__main__":
     if min_dt.isoweekday() < 3:
         min_dt -= datetime.timedelta(days=7)
     min_dt -= datetime.timedelta(days=min_dt.isoweekday()-1)
+    max_dt = datetime.datetime.utcnow()
     
     tornado.options.define("repo", default=None, type=str, help="user/repo to query")
     tornado.options.define("access_token", type=str, default=None, help="github access_token")
     tornado.options.define("limit", default=1100, type=int, help="max number of records to fetch")
     tornado.options.define("min_dt", default=min_dt.strftime("%Y-%m-%d"), type=str, help="YYYY-MM-DD as start of changelog")
+    tornado.options.define("max_dt", default=max_dt.strftime("%Y-%m-%d"), type=str, help="YYYY-MM-DD as end of changelog")
     tornado.options.define("actor", default=None, type=str, help="filter to events for this user")
     tornado.options.define("skip_event_type", default=["labeled", "head_ref_deleted", "referenced", "subscribed"], multiple=True)
     tornado.options.parse_command_line()
