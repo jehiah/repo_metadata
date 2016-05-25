@@ -26,15 +26,18 @@
 #  - give +/- from previous time period
 #  - reinforce the value of doing better
 
-import simplejson as json
+import json
 import tornado.options
 import glob
 import logging
+import csv
+import sys
+import os.path
 from collections import defaultdict, namedtuple
 import datetime
-from textstat.textstat import textstat
 import re
 
+from textstat.textstat import textstat
 from formatters import _github_dt
 
 Feature = namedtuple('Feature', ['feature', 'user', 'value'])
@@ -73,7 +76,11 @@ def process_comment(comment):
     issues = re.findall("#[0-9]{4,5}", txt)
     if issues:
         yield Feature("issue_crosslink", login, len(issues))
-        
+    
+    if comment.get('issue_url'):
+        issue_number = comment['issue_url'].split('/')[-1]
+        if cached_issue_assignee(issue_number) == login:
+            yield Feature("self_comment", login, 1)
 
     # print login, txt.encode('utf-8')
     
@@ -108,24 +115,62 @@ class Summary(object):
                 features.add(f.feature)
                 d[f.user][f.feature].append(f.value)
         
-        for user, user_data in sorted(d.items()):
-            print "*" * 10
-            print user.upper()
-            
-            data = [[combine_features(feature, values), feature] for feature, values in user_data.items()]
-            for count, feature in sorted(data, reverse=True):
-                print "%3d" % count, feature
+        return d
 
+def text_summary(d):
+    for user, user_data in sorted(d.items()):
+        print "*" * 10
+        print user.upper()
+        
+        data = [[combine_features(feature, values), feature] for feature, values in user_data.items()]
+        for count, feature in sorted(data, reverse=True):
+            print "%3d" % count, feature
+
+def csv_summary(d):
+    columns = ["user"]
+    features = set()
+    for user_data in d.values():
+        features |= set(user_data.keys())
+    columns += list(features)
+    o = csv.DictWriter(sys.stdout, columns)
+    o.writeheader()
+    
+    for user, user_data in sorted(d.items()):
+        row = dict(user=user)
+        for feature, values in user_data.items():
+            row[feature] = "%3d" % combine_features(feature, values)
+        o.writerow(row)
+
+_cache = {}
+def cached_issue_assignee(issue_number):
+    if issue_number not in _cache:
+        _cache[issue_number] = issue_assignee(issue_number)
+    return _cache[issue_number]
+
+def issue_assignee(issue_number):
+    filename = os.path.join(tornado.options.options.issue_cache_dir, issue_number + ".json")
+    if not os.path.exists(filename):
+        return None
+    body = json.loads(open(filename, 'r').read())
+    user = (body.get('assignee', {}) or {}).get('login')
+    if not user:
+        user = (body.get('user', {}) or {}).get('login')
+    return user
 
 def run():
     s = Summary()
-    s.process_features()
+    f = s.process_features()
+    if tornado.options.options.format == "csv":
+        csv_summary(f)
+    else:
+        text_summary(f)
 
 
 if __name__ == "__main__":
-    tornado.options.define("comment_cache_dir", type=str, default="comment_cache", help="directory to cache comments")
-    tornado.options.define("issue_cache_dir", type=str, default="issue_cache", help="directory to cache issues")
+    tornado.options.define("comment_cache_dir", type=str, default="../repo_cache/comment_cache", help="directory to cache comments")
+    tornado.options.define("issue_cache_dir", type=str, default="../repo_cache/issue_cache", help="directory to cache issues")
     tornado.options.define("interval", type=int, default=28, help="number of days to genreate stats for")
+    tornado.options.define("format", type=str, default="txt")
     tornado.options.options.parse_command_line()
 
     run()
