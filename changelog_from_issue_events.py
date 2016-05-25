@@ -2,7 +2,7 @@ import tornado.httpclient
 import tornado.options
 import simplejson as json
 import logging
-# import os
+import os
 # import glob
 import urllib
 from collections import defaultdict
@@ -10,23 +10,12 @@ from operator import itemgetter
 import datetime
 
 from formatters import _github_dt
+from helpers import get_link
 
 
 endpoint = "https://api.github.com/repos/%s/issues/events?"
 now = datetime.datetime.utcnow()
   
-def get_link(req, key="next"):
-    links = req.headers.get('Link')
-    if not links:
-        return
-    for link in links.split(', '):
-        url, rel = link.split('; ')
-        url = url.strip('<>')
-        assert rel.startswith("rel=")
-        rel = rel[4:].strip('"')
-        if rel == key:
-            return url
-
 def fetch_all(url, limit=None):
     o = []
     http = tornado.httpclient.HTTPClient()
@@ -113,13 +102,18 @@ def event_summary(events, min_dt, max_dt):
             state = "MERGED"
         print " * [#%s](https://github.com/%s/issues/%s) %s %s" % (issue_number, tornado.options.options.repo, issue_number, state, title)
 
-def run():
+def run(event_cache_dir):
     global endpoint
     token = tornado.options.options.access_token
     endpoint = endpoint % tornado.options.options.repo
     url = endpoint + urllib.urlencode(dict(access_token=token, per_page=100, direction="desc", sort="created"))
     logging.info('fetching events for %r', tornado.options.options.repo)
     raw_events = fetch_all(url, limit=tornado.options.options.limit)
+    for event in raw_events:
+        cache_file = os.path.join(event_cache_dir, str(event['id']) + ".json")
+        if not os.path.exists(cache_file):
+            with open(cache_file, 'w') as f:
+                f.write(json.dumps(event))
     date_ranges = [_github_dt(event['created_at']) for event in raw_events]
     min_dt = datetime.datetime.strptime(tornado.options.options.min_dt, '%Y-%m-%d')
     max_dt = datetime.datetime.strptime(tornado.options.options.max_dt, '%Y-%m-%d').replace(hour=23, minute=59)
@@ -149,6 +143,9 @@ if __name__ == "__main__":
     tornado.options.parse_command_line()
     
     logging.info('min_dt = %s', tornado.options.options.min_dt)
+    event_cache_dir = os.path.join("../repo_cache/event_cache", tornado.options.options.repo.replace("/","_"))
+    if not os.path.exists(event_cache_dir):
+        os.makedirs(event_cache_dir)
     
     assert tornado.options.options.repo
-    run()
+    run(event_cache_dir)

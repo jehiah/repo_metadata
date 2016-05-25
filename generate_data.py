@@ -8,11 +8,11 @@ import urllib
 from collections import defaultdict
 import datetime
 
+from helpers import get_link
+from formatters import _github_dt
+
 endpoint = "https://api.github.com/repos/%s/issues?"
 now = datetime.datetime.utcnow()
-
-def _github_dt(s):
-    return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
 
 # return start, end, [labels]
 def get_issue_data(issue):
@@ -23,16 +23,6 @@ def get_issue_data(issue):
         closed_at = datetime.datetime.utcnow() + datetime.timedelta(days=1)
     return dict(created_at=created_at, closed_at=closed_at, labels=issue['labels'])
     
-def get_link(req, key="next"):
-    links = req.headers.get('Link')
-    for link in links.split(', '):
-        url, rel = link.split('; ')
-        url = url.strip('<>')
-        assert rel.startswith("rel=")
-        rel = rel[4:].strip('"')
-        if rel == key:
-            return url
-
 def fetch_all(url, limit=None):
     o = []
     http = tornado.httpclient.HTTPClient()
@@ -131,7 +121,7 @@ if __name__ == "__main__":
     tornado.options.define("repo", default=None, type=str, help="user/repo to query")
     tornado.options.define("max_list", default=None, type=int, help="max number of issues to fetch (in groups of 100)")
     tornado.options.define("access_token", type=str, default=None, help="github access_token")
-    tornado.options.define("issue_cache_dir", type=str, default="issue_cache", help="directory to cache issues")
+    tornado.options.define("issue_cache_dir", type=str, default="../repo_cache/issue_cache", help="directory to cache issues")
     tornado.options.define("use_cache", type=bool, default=False)
     tornado.options.parse_command_line()
     
