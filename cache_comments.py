@@ -4,49 +4,10 @@ import simplejson as json
 import logging
 import os
 import urllib
-import datetime
 
-from formatters import _github_dt
-from helpers import get_link
-
+from fetcher import fetch_all
 
 endpoint = "https://api.github.com/repos/%s/issues/comments?"
-now = datetime.datetime.utcnow()
-
-# return start, end, [labels]
-def get_issue_data(issue):
-    created_at = _github_dt(issue["created_at"])
-    if issue['state'] == 'closed':
-        closed_at = _github_dt(issue["closed_at"])
-    else:
-        closed_at = datetime.datetime.utcnow() + datetime.timedelta(days=1)
-    return dict(created_at=created_at, closed_at=closed_at, labels=issue['labels'])
-    
-
-def fetch_all(url, limit=None):
-    o = []
-    http = tornado.httpclient.HTTPClient()
-    for x in range(80):
-        headers = {"Content-Type":"application/vnd.github-commitcomment.full+json"}
-        try:
-            resp = http.fetch(url, user_agent='issue fetcher (tornado/httpclient)', headers=headers)
-        except tornado.httpclient.HTTPError, e:
-            logging.error('failed %r %r', e.response.body, e.response)
-            raise e
-        data = json.loads(resp.body)
-        logging.info('got %d records', len(data))
-        logging.debug('%r', data)
-        next_url = get_link(resp, 'next')
-        o.extend(data)
-        cache_comments(data)
-        if limit and len(o) > limit:
-            logging.info('%d is passed limit of %d', len(o), limit)
-            break
-        if next_url:
-            url = next_url
-        else:
-            break
-    return o
 
 def cache_comments(raw_comments):
     if not os.path.exists(tornado.options.options.comment_cache_dir):
@@ -68,10 +29,9 @@ def run():
         direction=tornado.options.options.direction, 
         since=tornado.options.options.since))
     logging.info('fetching comments for %r', tornado.options.options.repo)
-    raw_comments = fetch_all(url, limit=tornado.options.options.limit)
+    headers = {"Content-Type":"application/vnd.github-commitcomment.full+json"}
+    raw_comments = fetch_all(url, limit=tornado.options.options.limit, headers=headers, callback=cache_comments)
     logging.debug(len(raw_comments))
-    # issue_data = [get_issue_data(x) for x in raw_issues]
-    # run_issues(issue_data)
 
 
 if __name__ == "__main__":
