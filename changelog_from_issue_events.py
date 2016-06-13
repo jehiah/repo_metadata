@@ -3,44 +3,12 @@ import tornado.options
 import simplejson as json
 import logging
 import os
-# import glob
-import urllib
+import glob
 from collections import defaultdict
 from operator import itemgetter
 import datetime
 
 from formatters import _github_dt
-from helpers import get_link
-
-
-endpoint = "https://api.github.com/repos/%s/issues/events?"
-now = datetime.datetime.utcnow()
-  
-def fetch_all(url, limit=None):
-    o = []
-    http = tornado.httpclient.HTTPClient()
-    for x in range(80):
-        # headers = {"Content-Type":"application/vnd.github-commitcomment.full+json"}
-        headers = {}
-        try:
-            resp = http.fetch(url, user_agent='issue fetcher (tornado/httpclient)', headers=headers)
-        except tornado.httpclient.HTTPError, e:
-            logging.error('failed %r %r', e.response.body, e.response)
-            raise e
-        data = json.loads(resp.body)
-        logging.debug('got %d records', len(data))
-        logging.debug('%r', data)
-        next_url = get_link(resp, 'next')
-        o.extend(data)
-        # cache_comments(data)
-        if limit and len(o) > limit:
-            logging.info('%d is passed limit of %d', len(o), limit)
-            break
-        if next_url:
-            url = next_url
-        else:
-            break
-    return o
 
 def _is_event_related(event, actor):
     if not actor:
@@ -54,28 +22,34 @@ def _is_event_related(event, actor):
         return True
     return False
 
-def event_summary(events, min_dt, max_dt):
+
+def is_filtered_out(event, min_dt, max_dt):
+    issue_number = event.get('issue',{}).get('number')
+    if not issue_number:
+        logging.warning('no issue number in %r', event)
+        return True
+    
+    dt = _github_dt(event['created_at'])
+    if dt < min_dt:
+        return True
+    if dt > max_dt:
+        return True
+    
+    if not _is_event_related(event, tornado.options.options.actor):
+        return True
+
+    if tornado.options.options.skip_event_type and event['event'] in tornado.options.options.skip_event_type:
+        return True
+
+    return False
+
+def event_summary(events):
     issues = defaultdict(list)
     for event in events:
         issue_number = event.get('issue',{}).get('number')
-        if not issue_number:
-            logging.warning('no issue number in %r', event)
-            continue
-        
-        dt = _github_dt(event['created_at'])
-        if dt < min_dt:
-            continue
-        if dt > max_dt:
-            continue
-        
-        if not _is_event_related(event, tornado.options.options.actor):
-            continue
-
-        if tornado.options.options.skip_event_type and event['event'] in tornado.options.options.skip_event_type:
-            continue
         
         d = dict(
-            dt=dt,
+            dt=_github_dt(event['created_at']),
             action=event['event'],
             actor=event['actor']['login'],
             issue_number=issue_number,
@@ -103,27 +77,25 @@ def event_summary(events, min_dt, max_dt):
         print " * [#%s](https://github.com/%s/issues/%s) %s %s" % (issue_number, tornado.options.options.repo, issue_number, state, title)
 
 def run(event_cache_dir):
-    global endpoint
-    token = tornado.options.options.access_token
-    endpoint = endpoint % tornado.options.options.repo
-    url = endpoint + urllib.urlencode(dict(access_token=token, per_page=100, direction="desc", sort="created"))
-    logging.info('fetching events for %r', tornado.options.options.repo)
-    raw_events = fetch_all(url, limit=tornado.options.options.limit)
-    for event in raw_events:
-        cache_file = os.path.join(event_cache_dir, str(event['id']) + ".json")
-        if not os.path.exists(cache_file):
-            with open(cache_file, 'w') as f:
-                f.write(json.dumps(event))
-    date_ranges = [_github_dt(event['created_at']) for event in raw_events]
     min_dt = datetime.datetime.strptime(tornado.options.options.min_dt, '%Y-%m-%d')
     max_dt = datetime.datetime.strptime(tornado.options.options.max_dt, '%Y-%m-%d').replace(hour=23, minute=59)
 
-    logging.info("%d events from %s to %s", len(raw_events), min(date_ranges), max(date_ranges))
+    events = []
+    for event_file in glob.glob(os.path.join(event_cache_dir, '*.json')):
+        with open(event_file, 'r') as f:
+            event_data = json.load(f)
+            if is_filtered_out(event_data, min_dt, max_dt):
+                continue
+            events.append(event_data)
+    
+    dates = [_github_dt(event['created_at']) for event in events]
+    logging.info("%d events from %s to %s", len(events), min(dates), max(dates))
+
     print "---"
     print ""
     print "**PR ChangeLog (from %s to %s)**" % (min_dt.strftime('%Y-%m-%d %A'), max_dt.strftime('%Y-%m-%d %A'))
     print ""
-    event_summary(raw_events, min_dt, max_dt)
+    event_summary(events)
 
 
 if __name__ == "__main__":
@@ -134,18 +106,17 @@ if __name__ == "__main__":
     max_dt = datetime.datetime.utcnow()
     
     tornado.options.define("repo", default=None, type=str, help="user/repo to query")
-    tornado.options.define("access_token", type=str, default=None, help="github access_token")
-    tornado.options.define("limit", default=1100, type=int, help="max number of records to fetch")
     tornado.options.define("min_dt", default=min_dt.strftime("%Y-%m-%d"), type=str, help="YYYY-MM-DD as start of changelog")
     tornado.options.define("max_dt", default=max_dt.strftime("%Y-%m-%d"), type=str, help="YYYY-MM-DD as end of changelog")
     tornado.options.define("actor", default=None, type=str, help="filter to events for this user")
     tornado.options.define("skip_event_type", default=["labeled", "head_ref_deleted", "referenced", "subscribed"], multiple=True)
+    tornado.options.define("event_cache_dir", type=str, help="directory to cache events")
     tornado.options.parse_command_line()
     
     logging.info('min_dt = %s', tornado.options.options.min_dt)
-    event_cache_dir = os.path.join("../repo_cache/event_cache", tornado.options.options.repo.replace("/","_"))
-    if not os.path.exists(event_cache_dir):
-        os.makedirs(event_cache_dir)
+    if not tornado.options.options.event_cache_dir:
+        event_cache_dir = os.path.join("../repo_cache/event_cache", tornado.options.options.repo.replace("/","_"))
+        tornado.options.options.event_cache_dir = event_cache_dir
     
     assert tornado.options.options.repo
     run(event_cache_dir)
