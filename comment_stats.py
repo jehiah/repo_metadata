@@ -94,12 +94,20 @@ def combine_features(feature, values):
     if feature == "avg_sentences_per_comment":
         return sum(values)/len(values)
     return sum(values)
-        
+
+def load_comments():
+    for filename in glob.glob("%s/*.json" % tornado.options.options.comment_cache_dir):
+        comment = json.loads(open(filename, 'r').read())
+        yield comment
+
 
 class Summary(object):
     def __init__(self):
         self.comments = []
-        min_dt = datetime.datetime.utcnow() - datetime.timedelta(days=tornado.options.options.interval)
+    
+    def load_data_for_interval(self, interval):
+        assert isinstance(interval, datetime.timedelta)
+        min_dt = datetime.datetime.utcnow() - interval
         for filename in glob.glob("%s/*.json" % tornado.options.options.comment_cache_dir):
             comment = json.loads(open(filename, 'r').read())
             if _github_dt(comment["created_at"]) < min_dt:
@@ -126,19 +134,24 @@ def text_summary(d):
         for count, feature in sorted(data, reverse=True):
             print "%3d" % count, feature
 
-def csv_summary(d):
-    columns = ["user"]
-    features = set()
+def csv_columns(d):
+    columns = set(["user"])
     for user_data in d.values():
-        features |= set(user_data.keys())
-    columns += list(features)
+        columns |= set(user_data.keys())
+    return columns
+
+def csv_summary(d, write_headers=True, columns=None, **kwargs):
+    if not columns:
+        columns = sorted(list(csv_columns(d)))
     o = csv.DictWriter(sys.stdout, columns)
-    o.writeheader()
+    if write_headers:
+        o.writeheader()
     
     for user, user_data in sorted(d.items()):
         row = dict(user=user)
+        row.update(kwargs)
         for feature, values in user_data.items():
-            row[feature] = "%3d" % combine_features(feature, values)
+            row[feature] = "%d" % combine_features(feature, values)
         o.writerow(row)
 
 _cache = {}
@@ -159,18 +172,50 @@ def issue_assignee(issue_number):
 
 def run():
     s = Summary()
+    s.load_data_for_interval(datetime.timedelta(days=tornado.options.options.interval))
     f = s.process_features()
     if tornado.options.options.format == "csv":
         csv_summary(f)
     else:
         text_summary(f)
 
+def run_by_month():
+    data = defaultdict(Summary)
+    min_dt = None
+    if tornado.options.options.min_dt:
+        min_dt = datetime.datetime.strptime(tornado.options.options.min_dt, '%Y-%m-%d')
+        
+    for comment in load_comments():
+        dt = _github_dt(comment["created_at"])
+        if min_dt and dt < min_dt:
+            continue
+        data["%d-%d" % (dt.year, dt.month)].comments.append(comment)
+    
+    features = []
+    columns = set()
+    for yyyymm, summary in data.items():
+        f = summary.process_features()
+        columns |= csv_columns(f)
+        features.append((yyyymm,f))
+    
+    columns.remove('user')
+    columns = ["user", "yyyymm"] + sorted(list(columns))
+    for i, v in enumerate(features):
+        yyyymm, f = v
+        csv_summary(f, write_headers=(i == 0), columns=columns, yyyymm=yyyymm)
 
 if __name__ == "__main__":
     tornado.options.define("comment_cache_dir", type=str, default="../repo_cache/comment_cache", help="directory to cache comments")
     tornado.options.define("issue_cache_dir", type=str, default="../repo_cache/issue_cache", help="directory to cache issues")
     tornado.options.define("interval", type=int, default=28, help="number of days to genreate stats for")
+    tornado.options.define("min_dt", type=str, default=None, help="YYYY-mm-dd")
+    tornado.options.define("run_by_month", type=bool, default=False)
     tornado.options.define("format", type=str, default="txt")
     tornado.options.options.parse_command_line()
 
-    run()
+    if tornado.options.options.run_by_month:
+        assert tornado.options.options.format == "csv"
+        run_by_month()
+    else:
+        assert not tornado.options.options.min_dt
+        run()
