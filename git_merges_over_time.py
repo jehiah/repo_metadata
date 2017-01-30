@@ -20,19 +20,27 @@ def apply_activity_filter(d):
 
 if __name__ == "__main__":
     tornado.options.define("git_log_output_file", default="../repo_cache/commit_log.csv", type=str)
-    tornado.options.define("min_year", type=int, default=2011)
+    tornado.options.define("min_dt", type=str, default="2011/1/1", help="in %Y/%m/%d format")
+    tornado.options.define("max_dt", type=str, default=datetime.datetime.utcnow().strftime('%Y/%m/%d'), help="in %Y/%m/%d format")
     tornado.options.define("min_activity", type=int, default=0)
     tornado.options.define("group_by", type=str, default="month", help="month|week")
     tornado.options.parse_command_line()
     
+    
     o = tornado.options.options
+
+    min_dt = datetime.datetime.strptime(o.min_dt, "%Y/%m/%d")
+    max_dt = datetime.datetime.strptime(o.max_dt, "%Y/%m/%d")
+
     w = csv.writer(sys.stdout)
     data = defaultdict(list)
     for line in csv.DictReader(open(o.git_log_output_file, 'r')):
         if line['merge'] != '1':
             continue
         dt = _dt(line['ts'])
-        if dt.year < o.min_year:
+        if dt < min_dt:
+            continue
+        if dt > max_dt:
             continue
         if o.group_by == "week":
             dt = dt - datetime.timedelta(days=dt.isoweekday() - 1)
