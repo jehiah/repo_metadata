@@ -36,11 +36,15 @@ import os.path
 from collections import namedtuple
 import datetime
 import re
+# from google.cloud import language
+
 
 from textstat.textstat import textstat
 from formatters import _github_dt
 
 Feature = namedtuple('Feature', ['feature', 'user', 'value'])
+# language_client = language.Client()
+
         
 def process_comment(comment):
     login = comment["user"]["login"]
@@ -87,14 +91,35 @@ def process_comment(comment):
         issue_number = comment['issue_url'].split('/')[-1]
         if cached_issue_assignee(issue_number) == login:
             yield Feature("self_comment", login, 1)
+    
+    # document = language_client.document_from_text(txt)
+    # sentiment = document.analyze_sentiment()
+    # logging.info('sentiment score:%r magnitude:%r text %r', sentiment.score, sentiment.magnitude, txt)
+    # yield Feature(_sentiment_category(sentiment), login, 1)
+
+
+def _sentiment_category(sentiment):
+    if sentiment.score >= .5:
+        return 'comment_positive'
+    elif sentiment.score >= .3:
+        return 'comment_milidly_positive'
+    elif sentiment.score <= -0.5:
+        return 'comment_negative'
+    elif sentiment.score <= -0.3:
+        return 'comment_milidly_negative'
+    elif sentiment.magnitude >1:
+        return 'comment_mixed'
+    else:
+        return 'comment_neutral'
+    
 
     # print login, txt.encode('utf-8')
     
 def _clean_body(t):
     t = re.sub('```.*?```', '', t, flags=re.MULTILINE|re.DOTALL)
     t = re.sub('\!\[.+\]\(.+\)', '', t, flags=re.MULTILINE|re.DOTALL)
-    t = re.sub('(RFR|RFM|LGTM|:thumbsup:)', '', t)
-    return t
+    t = re.sub('(RFR|RFM|LGTM|PTAL|:thumbsup:)', '', t)
+    return t.strip()
             
 def combine_features(feature, values):
     if feature == "avg_sentences_per_comment":
@@ -112,7 +137,7 @@ def comments_for_interval(interval):
     for filename in glob.glob("%s/*.json" % tornado.options.options.comment_cache_dir):
         comment = json.loads(open(filename, 'r').read())
         if _github_dt(comment["created_at"]) < min_dt:
-            logging.info("skipping %s dt %s < %s", comment["id"], comment["created_at"], min_dt)
+            logging.debug("skipping %s dt %s < %s", comment["id"], comment["created_at"], min_dt)
             continue
         yield comment
 
