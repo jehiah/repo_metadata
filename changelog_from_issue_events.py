@@ -74,6 +74,8 @@ def event_summary(events):
             state = "RFR"
         if state == "CLOSED" and "merged" in actions:
             state = "MERGED"
+        if state == "OPEN" and "WIP" in title:
+            state = "WIP"
         print " * [#%s](https://github.com/%s/issues/%s) %s %s" % (issue_number, tornado.options.options.repo, issue_number, state, title)
 
 def run(event_cache_dir):

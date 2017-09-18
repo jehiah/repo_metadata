@@ -17,6 +17,7 @@ def cache_issues(raw_issues):
     for issue in raw_issues:
         filename = os.path.join(tornado.options.options.issue_cache_dir, "%d.json" % issue['number'])
         if os.path.exists(filename):
+            logging.info('removing existing %s', filename)
             os.unlink(filename)
         logging.info('creating %s', filename)
         open(filename, 'w').write(json.dumps(issue))

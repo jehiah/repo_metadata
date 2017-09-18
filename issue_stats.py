@@ -44,7 +44,7 @@ def build_table(records, f=None):
     for login in sorted(data.keys()):
         total = sum(data[login].values()) / len(columns)
         rows.append(["%14s" % login] + map(lambda x: "%3d" % data[login][x], columns) + ["%3d" % total])
-    
+    rows.append(["%14s" % "total"] + map(lambda x: "%3d" % sum(map(lambda xx: data[xx][x], data.keys())), columns) + [""])
     return ["%14s " % "login"] + map(lambda x: x[2:], columns) + [" avg"], rows
 
 
