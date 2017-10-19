@@ -4,6 +4,12 @@ import logging
 
 from helpers import get_link
 
+def fetch_one(url):
+    http = tornado.httpclient.HTTPClient()
+    resp = http.fetch(url, user_agent='issue fetcher (tornado/httpclient)')
+    return json.loads(resp.body)
+    
+
 def fetch_all(url, limit=None, headers=None, callback=None):
     o = []
     headers = headers or {}
