@@ -13,6 +13,8 @@ endpoint = "https://api.github.com/repos/%s/issues?"
 ISSUE_ENDPOINT = "https://api.github.com/repos/%s/issues/%%d?"
 now = datetime.datetime.utcnow()
 
+updated_issues = set()
+
 def cache_issues(raw_issues):
     if not os.path.exists(tornado.options.options.issue_cache_dir):
         os.makedirs(tornado.options.options.issue_cache_dir)
@@ -23,39 +25,51 @@ def cache_issues(raw_issues):
             os.unlink(filename)
         logging.info('creating %s', filename)
         open(filename, 'w').write(json.dumps(issue))
+        updated_issues.add(issue['number'])
+
+def cache_issue(issue_number, repo, access_token):
+    issue_endpoint = (ISSUE_ENDPOINT % repo) + urllib.urlencode(dict(access_token=access_token))
+    issue = fetch_one(issue_endpoint % issue_number)
+    filename = os.path.join(tornado.options.options.issue_cache_dir, "%d.json" % issue_number)
+    if os.path.exists(filename):
+        logging.info('removing existing %s', filename)
+        os.unlink(filename)
+    logging.info('updating %s', filename)
+    open(filename, 'w').write(json.dumps(issue))
+    
 
 def stale_issues(cache_dir):
     stale = set()
     for filename in glob.glob(cache_dir + "/*.json"):
         issue = json.loads(open(filename, 'r').read())
         if issue['state'] == "open":
+            if issue['number'] in updated_issues:
+                continue
             stale.add(issue['number'])
     logging.info('found %d possibly stale cached open issues', len(stale))
     return stale
+
+def fetch_issues(state, repo, access_token, limit):
+    url = endpoint + urllib.urlencode(dict(access_token=access_token, per_page=100, filter='all', state=state))
+    logging.info('fetching %s issues for %r', state, repo)
+    raw_issues = fetch_all(url, limit=limit, callback=cache_issues)
+    logging.info("got %d %s issues", len(raw_issues), state)
+    
 
 def run():
     global endpoint
     o = tornado.options.options
     endpoint = endpoint % o.repo
-    issue_endpoint = (ISSUE_ENDPOINT % o.repo) + urllib.urlencode(dict(access_token=o.access_token))
+
+    if "open" in o.state:
+        fetch_issues("open", o.repo, o.access_token, o.limit)
+    
     if "stale" in o.state:
         for issue_number in stale_issues(o.issue_cache_dir):
-            issue = fetch_one(issue_endpoint % issue_number)
-            filename = os.path.join(tornado.options.options.issue_cache_dir, "%d.json" % issue_number)
-            if os.path.exists(filename):
-                logging.info('removing existing %s', filename)
-                os.unlink(filename)
-            logging.info('updating %s', filename)
-            open(filename, 'w').write(json.dumps(issue))
-            
-            
-    for state in o.state:
-        if state == "stale":
-            continue
-        url = endpoint + urllib.urlencode(dict(access_token=o.access_token, per_page=100, filter='all', state=state))
-        logging.info('fetching %s issues for %r', state, o.repo)
-        raw_issues = fetch_all(url, limit=o.limit, callback=cache_issues)
-        logging.info("got %d %s issues", len(raw_issues), state)
+            cache_issue(issue_number, o.repo, o.access_token)
+
+    if "closed" in o.state:
+        fetch_issues("closed", o.repo, o.access_token, o.limit)
 
 if __name__ == "__main__":
     tornado.options.define("repo", default=None, type=str, help="user/repo to query")
