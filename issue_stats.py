@@ -26,50 +26,61 @@ def load_data(min_dt):
                 labels = map(itemgetter('name'), issue["labels"]),
             )
 
-def build_table(records, f=None):
+def build_table(records, group_by, f=None):
     if callable(f):
         records = filter(f, records)
     def inner():
         return defaultdict(int)
     data = defaultdict(inner)
     for row in records:
-        data[row['login']][row['created_at'].strftime("%Y/%m")] += 1
+        data[row['login']][group_by_column(row['created_at'])] += 1
     
     columns = set()
     for datasets in data.values():
         columns |= set(datasets.keys())
     
+    col_format = "%3d"
+    if group_by == "week":
+        col_format = "%6d"
+    
     columns = sorted(columns)
     rows = []
     for login in sorted(data.keys()):
         total = sum(data[login].values()) / len(columns)
-        rows.append(["%14s" % login] + map(lambda x: "%3d" % data[login][x], columns) + ["%3d" % total])
-    rows.append(["%14s" % "total"] + map(lambda x: "%3d" % sum(map(lambda xx: data[xx][x], data.keys())), columns) + [""])
+        rows.append(["%14s" % login] + map(lambda x: col_format % data[login][x], columns) + [col_format % total])
+    rows.append(["%14s" % "total"] + map(lambda x: col_format % sum(map(lambda xx: data[xx][x], data.keys())), columns) + [""])
     return ["%14s " % "login"] + map(lambda x: x[2:], columns) + [" avg"], rows
 
-
+def group_by_column(dt):
+    if tornado.options.options.group_by == "month":
+        return dt.strftime("%Y/%m")
+    start = dt - datetime.timedelta(days=dt.weekday())
+    return start.strftime("%Y/%m/%d")
 
 
 if __name__ == "__main__":
     # tornado.options.define("comment_cache_dir", type=str, default="../repo_cache/comment_cache", help="directory to cache comments")
     tornado.options.define("issue_cache_dir", type=str, default="../repo_cache/issue_cache", help="directory to cache issues")
     tornado.options.define("min_dt", type=str, default=datetime.datetime(2016,1,1).strftime('%Y-%m-%d'), help="YYYY-mm-dd")
-    
+    tornado.options.define("group_by", type=str, default="month", help="month|week")
     tornado.options.parse_command_line()
+    o = tornado.options.options
     
-    min_dt = datetime.datetime.strptime(tornado.options.options.min_dt, '%Y-%m-%d')
+    assert o.group_by in ["week", "month"]
+    
+    min_dt = datetime.datetime.strptime(o.min_dt, '%Y-%m-%d')
     records = list(load_data(min_dt))
     
     print ""
     print "PR's by assignee by month created"
-    columns, rows = build_table(records) 
+    columns, rows = build_table(records, o.group_by) 
     print "|".join(columns)
     for row in rows:
         print " | ".join(row)
 
     print ""
     print "PR's with \"bug\" label by assignee by month created"
-    columns, rows = build_table(records, lambda x: 'bug' in x['labels'])
+    columns, rows = build_table(records, o.group_by, lambda x: 'bug' in x['labels'])
     print "|".join(columns)
     for row in rows:
         print " | ".join(row)
