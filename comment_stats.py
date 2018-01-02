@@ -139,6 +139,7 @@ def comments_for_interval(interval):
         if _github_dt(comment["created_at"]) < min_dt:
             logging.debug("skipping %s dt %s < %s", comment["id"], comment["created_at"], min_dt)
             continue
+        logging.debug('comment %r', comment)
         yield comment
 
 _cache = {}
@@ -172,6 +173,7 @@ def run_by_month():
     for comment in load_comments():
         dt = _github_dt(comment["created_at"])
         if min_dt and dt < min_dt:
+            logging.debug('skipping comment dt %s - %s', dt, min_dt)
             continue
         yyyymm = "%d-%02d" % (dt.year, dt.month)
         for feature in process_comment(comment):
@@ -183,7 +185,6 @@ if __name__ == "__main__":
     tornado.options.define("interval", type=int, default=28, help="number of days to genreate stats for")
     tornado.options.define("min_dt", type=str, default=None, help="YYYY-mm-dd")
     tornado.options.define("run_by_month", type=bool, default=False)
-    tornado.options.define("format", type=str, default="txt")
     tornado.options.options.parse_command_line()
 
     out = csv.writer(sys.stdout)
