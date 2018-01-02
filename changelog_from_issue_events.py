@@ -46,6 +46,7 @@ def is_filtered_out(event, min_dt, max_dt):
 def event_summary(events):
     issues = defaultdict(list)
     for event in events:
+        logging.debug('%s', event)
         issue_number = event.get('issue',{}).get('number')
         
         d = dict(
@@ -58,6 +59,8 @@ def event_summary(events):
             sort_key = event['issue']['title'].split()[0],
             state=event['issue']['state'],
             labels=[x['name'] for x in event['issue']['labels']],
+            html_url=event['issue']['html_url'],
+            repo='/'.join(event['issue']['repository_url'].split('/')[-2:]),
         )
         issues[issue_number].append(d)
         # put oldest first
@@ -70,25 +73,29 @@ def event_summary(events):
         title = data[0]['title']
         actions = [x['action'] for x in data]
         state = data[0]['state'].upper()
+        repo =  data[0]['repo']
+        if repo == tornado.options.options.repo[0]:
+            repo = ''
         if state == "OPEN" and "RFR" in data[0]['labels']:
             state = "RFR"
         if state == "CLOSED" and "merged" in actions:
             state = "MERGED"
         if state == "OPEN" and "WIP" in title:
             state = "WIP"
-        print " * [#%s](https://github.com/%s/issues/%s) %s %s" % (issue_number, tornado.options.options.repo, issue_number, state, title)
+        print " * [%s#%s](%s) %s %s" % (repo, issue_number, data[0]['html_url'], state, title)
 
-def run(event_cache_dir):
+def run(event_cache_dirs):
     min_dt = datetime.datetime.strptime(tornado.options.options.min_dt, '%Y-%m-%d')
     max_dt = datetime.datetime.strptime(tornado.options.options.max_dt, '%Y-%m-%d').replace(hour=23, minute=59)
 
     events = []
-    for event_file in glob.glob(os.path.join(event_cache_dir, '*.json')):
-        with open(event_file, 'r') as f:
-            event_data = json.load(f)
-            if is_filtered_out(event_data, min_dt, max_dt):
-                continue
-            events.append(event_data)
+    for event_cache_dir in event_cache_dirs:
+        for event_file in glob.glob(os.path.join(event_cache_dir, '*.json')):
+            with open(event_file, 'r') as f:
+                event_data = json.load(f)
+                if is_filtered_out(event_data, min_dt, max_dt):
+                    continue
+                events.append(event_data)
     
     dates = [_github_dt(event['created_at']) for event in events]
     logging.info("%d events from %s to %s", len(events), min(dates), max(dates))
@@ -107,7 +114,7 @@ if __name__ == "__main__":
     min_dt -= datetime.timedelta(days=min_dt.isoweekday()-1)
     max_dt = datetime.datetime.utcnow()
     
-    tornado.options.define("repo", default=None, type=str, help="user/repo to query")
+    tornado.options.define("repo", default=None, type=str, help="user/repo to query", multiple=True)
     tornado.options.define("min_dt", default=min_dt.strftime("%Y-%m-%d"), type=str, help="YYYY-MM-DD as start of changelog")
     tornado.options.define("max_dt", default=max_dt.strftime("%Y-%m-%d"), type=str, help="YYYY-MM-DD as end of changelog")
     tornado.options.define("actor", default=None, type=str, help="filter to events for this user")
@@ -115,10 +122,14 @@ if __name__ == "__main__":
     tornado.options.define("event_cache_dir", type=str, help="directory to cache events")
     tornado.options.parse_command_line()
     
-    logging.info('min_dt = %s', tornado.options.options.min_dt)
-    if not tornado.options.options.event_cache_dir:
-        event_cache_dir = os.path.join("../repo_cache/event_cache", tornado.options.options.repo.replace("/","_"))
-        tornado.options.options.event_cache_dir = event_cache_dir
-    
-    assert tornado.options.options.repo
-    run(event_cache_dir)
+    o = tornado.options.options
+    logging.info('min_dt = %s', o.min_dt)
+    assert o.repo
+    event_cache_dirs = []
+    for repo in o.repo:
+        assert repo
+        event_cache_dir = o.event_cache_dir
+        if not event_cache_dir:
+            event_cache_dir = os.path.join("../repo_cache/event_cache", repo.replace("/","_"))
+        event_cache_dirs.append(event_cache_dir)
+    run(event_cache_dirs)
