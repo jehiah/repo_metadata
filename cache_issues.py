@@ -21,7 +21,7 @@ def cache_issues(raw_issues):
     for issue in raw_issues:
         filename = os.path.join(tornado.options.options.issue_cache_dir, "%d.json" % issue['number'])
         if os.path.exists(filename):
-            logging.info('removing existing %s', filename)
+            logging.warning('removing existing %s', filename)
             os.unlink(filename)
         logging.info('creating %s', filename)
         open(filename, 'w').write(json.dumps(issue))
@@ -32,7 +32,7 @@ def cache_issue(issue_number, repo, access_token):
     issue = fetch_one(issue_endpoint % issue_number)
     filename = os.path.join(tornado.options.options.issue_cache_dir, "%d.json" % issue_number)
     if os.path.exists(filename):
-        logging.info('removing existing %s', filename)
+        logging.warning('removing existing %s', filename)
         os.unlink(filename)
     logging.info('updating %s', filename)
     open(filename, 'w').write(json.dumps(issue))

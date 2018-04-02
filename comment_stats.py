@@ -130,11 +130,22 @@ def load_comments():
     for filename in glob.glob("%s/*.json" % tornado.options.options.comment_cache_dir):
         comment = json.loads(open(filename, 'r').read())
         yield comment
+    for filename in glob.glob("%s/*.json" % tornado.options.options.review_cache_dir):
+        comment = json.loads(open(filename, 'r').read())
+        yield comment
+    
 
 def comments_for_interval(interval):
     assert isinstance(interval, datetime.timedelta)
     min_dt = datetime.datetime.utcnow() - interval
     for filename in glob.glob("%s/*.json" % tornado.options.options.comment_cache_dir):
+        comment = json.loads(open(filename, 'r').read())
+        if _github_dt(comment["created_at"]) < min_dt:
+            logging.debug("skipping %s dt %s < %s", comment["id"], comment["created_at"], min_dt)
+            continue
+        logging.debug('comment %r', comment)
+        yield comment
+    for filename in glob.glob("%s/*.json" % tornado.options.options.review_cache_dir):
         comment = json.loads(open(filename, 'r').read())
         if _github_dt(comment["created_at"]) < min_dt:
             logging.debug("skipping %s dt %s < %s", comment["id"], comment["created_at"], min_dt)
@@ -181,6 +192,7 @@ def run_by_month():
 
 if __name__ == "__main__":
     tornado.options.define("comment_cache_dir", type=str, default="../repo_cache/comment_cache", help="directory to cache comments")
+    tornado.options.define("review_cache_dir", type=str, default="../repo_cache/review_cache", help="directory to cache review comments")
     tornado.options.define("issue_cache_dir", type=str, default="../repo_cache/issue_cache", help="directory to cache issues")
     tornado.options.define("interval", type=int, default=28, help="number of days to genreate stats for")
     tornado.options.define("min_dt", type=str, default=None, help="YYYY-mm-dd")

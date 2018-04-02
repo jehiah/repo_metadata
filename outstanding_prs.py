@@ -3,6 +3,7 @@ import tornado.options
 import datetime
 import os
 import glob
+import logging
 from collections import defaultdict
 from operator import itemgetter
 from formatters import _github_dt
@@ -22,6 +23,7 @@ def load_data():
                 assignees = [issue["user"]["login"]]
             yield dict(
                 issue_number=issue["number"],
+                title=issue['title'],
                 assignees=assignees,
                 updated_at=_github_dt(issue['updated_at']),
                 created_at=_github_dt(issue['created_at']),
@@ -46,6 +48,7 @@ def build_table(records, f=None):
 
     for row in records:
         for login in row['assignees']:
+            logging.debug('#%-5d - %-15s - %s', row['issue_number'], login, row['title'])
             data[login][offset(row)] += 1
     
     rows = []
