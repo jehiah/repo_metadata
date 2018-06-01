@@ -8,18 +8,19 @@ import urllib
 import datetime
 
 from fetcher import fetch_all, fetch_one
+from helpers import cache_dir
 
-endpoint = "https://api.github.com/repos/%s/issues?"
-ISSUE_ENDPOINT = "https://api.github.com/repos/%s/issues/%%d?"
+endpoint = "https://api.github.com/repos/%s/%s?"
+ISSUE_ENDPOINT = "https://api.github.com/repos/%s/%s/%%d?"
 now = datetime.datetime.utcnow()
 
 updated_issues = set()
 
 def cache_issues(raw_issues):
-    if not os.path.exists(tornado.options.options.issue_cache_dir):
-        os.makedirs(tornado.options.options.issue_cache_dir)
+    o = tornado.options.options
+    dirname = cache_dir(o.cache_base, "%s_cache" % o.issue_type, o.repo)
     for issue in raw_issues:
-        filename = os.path.join(tornado.options.options.issue_cache_dir, "%d.json" % issue['number'])
+        filename = os.path.join(dirname, "%d.json" % issue['number'])
         if os.path.exists(filename):
             logging.warning('removing existing %s', filename)
             os.unlink(filename)
@@ -28,7 +29,7 @@ def cache_issues(raw_issues):
         updated_issues.add(issue['number'])
 
 def cache_issue(issue_number, repo, access_token):
-    issue_endpoint = (ISSUE_ENDPOINT % repo) + urllib.urlencode(dict(access_token=access_token))
+    issue_endpoint = (ISSUE_ENDPOINT % (repo, tornado.options.options.issue_type)) + urllib.urlencode(dict(access_token=access_token))
     issue = fetch_one(issue_endpoint % issue_number)
     filename = os.path.join(tornado.options.options.issue_cache_dir, "%d.json" % issue_number)
     if os.path.exists(filename):
@@ -38,9 +39,10 @@ def cache_issue(issue_number, repo, access_token):
     open(filename, 'w').write(json.dumps(issue))
     
 
-def stale_issues(cache_dir):
+def stale_issues():
     stale = set()
-    for filename in glob.glob(cache_dir + "/*.json"):
+    dirname = cache_dir(o.cache_base, "%s_cache" % o.issue_type, o.repo)
+    for filename in glob.glob(dirname + "/*.json"):
         issue = json.loads(open(filename, 'r').read())
         if issue['state'] == "open":
             if issue['number'] in updated_issues:
@@ -59,13 +61,13 @@ def fetch_issues(state, repo, access_token, limit):
 def run():
     global endpoint
     o = tornado.options.options
-    endpoint = endpoint % o.repo
+    endpoint = endpoint % (o.repo, o.issue_type)
 
     if "open" in o.state:
         fetch_issues("open", o.repo, o.access_token, o.limit)
     
     if "stale" in o.state:
-        for issue_number in stale_issues(o.issue_cache_dir):
+        for issue_number in stale_issues():
             cache_issue(issue_number, o.repo, o.access_token)
 
     if "closed" in o.state:
@@ -74,10 +76,14 @@ def run():
 if __name__ == "__main__":
     tornado.options.define("repo", default=None, type=str, help="user/repo to query")
     tornado.options.define("access_token", type=str, default=None, help="github access_token")
-    tornado.options.define("issue_cache_dir", type=str, default="../repo_cache/issue_cache", help="directory to cache issues")
+    tornado.options.define("cache_base", type=str, default="../repo_cache", help="base cache directory")
     tornado.options.define("state", type=str, default=["stale", "open", "closed"], multiple=True)
     tornado.options.define("limit", type=int, default=1000)
+    tornado.options.define("issue_type", default="issues", help="issues|pulls")
     tornado.options.parse_command_line()
     
-    assert tornado.options.options.repo
+    o = tornado.options.options
+    assert o.repo and '/' in o.repo
+    assert o.issue_type in ['issues', 'pulls']
+
     run()

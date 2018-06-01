@@ -41,6 +41,7 @@ import re
 
 from textstat.textstat import textstat
 from formatters import _github_dt
+from helpers import cache_dir
 
 Feature = namedtuple('Feature', ['feature', 'user', 'value'])
 # language_client = language.Client()
@@ -127,31 +128,24 @@ def combine_features(feature, values):
     return sum(values)
 
 def load_comments():
-    for filename in glob.glob("%s/*.json" % tornado.options.options.comment_cache_dir):
-        comment = json.loads(open(filename, 'r').read())
-        yield comment
-    for filename in glob.glob("%s/*.json" % tornado.options.options.review_cache_dir):
-        comment = json.loads(open(filename, 'r').read())
-        yield comment
-    
+    o = tornado.options.options
+    for dirname in [cache_dir(o.cache_base, "comment_cache", o.repo), cache_dir(o.cache_base, "comment_cache", o.repo)]:
+        for filename in glob.glob(os.path.join(dirname, "*.json")):
+            comment = json.loads(open(filename, 'r').read())
+            yield comment
+
 
 def comments_for_interval(interval):
     assert isinstance(interval, datetime.timedelta)
     min_dt = datetime.datetime.utcnow() - interval
-    for filename in glob.glob("%s/*.json" % tornado.options.options.comment_cache_dir):
-        comment = json.loads(open(filename, 'r').read())
-        if _github_dt(comment["created_at"]) < min_dt:
-            logging.debug("skipping %s dt %s < %s", comment["id"], comment["created_at"], min_dt)
-            continue
-        logging.debug('comment %r', comment)
-        yield comment
-    for filename in glob.glob("%s/*.json" % tornado.options.options.review_cache_dir):
-        comment = json.loads(open(filename, 'r').read())
-        if _github_dt(comment["created_at"]) < min_dt:
-            logging.debug("skipping %s dt %s < %s", comment["id"], comment["created_at"], min_dt)
-            continue
-        logging.debug('comment %r', comment)
-        yield comment
+    for dirname in [cache_dir(o.cache_base, "comment_cache", o.repo), cache_dir(o.cache_base, "comment_cache", o.repo)]:
+        for filename in glob.glob(os.path.join(dirname, "*.json")):
+            comment = json.loads(open(filename, 'r').read())
+            if _github_dt(comment["created_at"]) < min_dt:
+                logging.debug("skipping %s dt %s < %s", comment["id"], comment["created_at"], min_dt)
+                continue
+            logging.debug('comment %r', comment)
+            yield comment
 
 _cache = {}
 def cached_issue_assignee(issue_number):
@@ -160,7 +154,9 @@ def cached_issue_assignee(issue_number):
     return _cache[issue_number]
 
 def issue_assignee(issue_number):
-    filename = os.path.join(tornado.options.options.issue_cache_dir, issue_number + ".json")
+    o = tornado.options.options
+    dirname = cache_dir(o.base, "issues_cache", o.repo)
+    filename = os.path.join(dirname, issue_number + ".json")
     if not os.path.exists(filename):
         return None
     body = json.loads(open(filename, 'r').read())
@@ -191,20 +187,21 @@ def run_by_month():
             yield [yyyymm, feature.feature, feature.user, feature.value]
 
 if __name__ == "__main__":
-    tornado.options.define("comment_cache_dir", type=str, default="../repo_cache/comment_cache", help="directory to cache comments")
-    tornado.options.define("review_cache_dir", type=str, default="../repo_cache/review_cache", help="directory to cache review comments")
-    tornado.options.define("issue_cache_dir", type=str, default="../repo_cache/issue_cache", help="directory to cache issues")
+    tornado.options.define("cache_base", type=str, default="../repo_cache", help="base cache directory")
+    tornado.options.define("repo", default=None, type=str, help="user/repo to query")
     tornado.options.define("interval", type=int, default=28, help="number of days to genreate stats for")
     tornado.options.define("min_dt", type=str, default=None, help="YYYY-mm-dd")
     tornado.options.define("run_by_month", type=bool, default=False)
     tornado.options.options.parse_command_line()
 
+    o = tornado.options.options
+    assert o.repo
     out = csv.writer(sys.stdout)
-    if tornado.options.options.run_by_month:
+    if o.run_by_month:
         for row in run_by_month():
             out.writerow(row)
     else:
-        assert not tornado.options.options.min_dt
+        assert not o.min_dt
         for row in run_interval():
             out.writerow(row)
     

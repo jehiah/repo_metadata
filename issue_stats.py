@@ -5,12 +5,15 @@ import os
 import glob
 from collections import defaultdict
 from operator import itemgetter
-from formatters import _github_dt
 
+from formatters import _github_dt
+from helpers import cache_dir
 
 
 def load_data(min_dt):
-    for issue_file in glob.glob(os.path.join(tornado.options.options.issue_cache_dir, '*.json')):
+    o = tornado.options.options
+    dirname = cache_dir(o.cache_base, "issues_cache", o.repo)
+    for issue_file in glob.glob(os.path.join(dirname, '*.json')):
         with open(issue_file, 'r') as f:
             issue = json.load(f)
             dt = _github_dt(issue['created_at'])
@@ -59,14 +62,15 @@ def group_by_column(dt):
 
 
 if __name__ == "__main__":
-    # tornado.options.define("comment_cache_dir", type=str, default="../repo_cache/comment_cache", help="directory to cache comments")
-    tornado.options.define("issue_cache_dir", type=str, default="../repo_cache/issue_cache", help="directory to cache issues")
+    tornado.options.define("cache_base", type=str, default="../repo_cache", help="base cache directory")
+    tornado.options.define("repo", default=None, type=str, help="user/repo to query")
     tornado.options.define("min_dt", type=str, default=datetime.datetime(2016,1,1).strftime('%Y-%m-%d'), help="YYYY-mm-dd")
     tornado.options.define("group_by", type=str, default="month", help="month|week")
     tornado.options.parse_command_line()
     o = tornado.options.options
     
     assert o.group_by in ["week", "month"]
+    assert o.repo
     
     min_dt = datetime.datetime.strptime(o.min_dt, '%Y-%m-%d')
     records = list(load_data(min_dt))

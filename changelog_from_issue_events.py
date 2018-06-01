@@ -9,6 +9,7 @@ from operator import itemgetter
 import datetime
 
 from formatters import _github_dt
+from helpers import cache_dir
 
 def _is_event_related(event, actor):
     if not actor:
@@ -84,13 +85,16 @@ def event_summary(events):
             state = "WIP"
         print " * [%s#%s](%s) %s %s" % (repo, issue_number, data[0]['html_url'], state, title)
 
-def run(event_cache_dirs):
-    min_dt = datetime.datetime.strptime(tornado.options.options.min_dt, '%Y-%m-%d')
-    max_dt = datetime.datetime.strptime(tornado.options.options.max_dt, '%Y-%m-%d').replace(hour=23, minute=59)
+def run(repos):
+    o = tornado.options.options
+    min_dt = datetime.datetime.strptime(o.min_dt, '%Y-%m-%d')
+    max_dt = datetime.datetime.strptime(o.max_dt, '%Y-%m-%d').replace(hour=23, minute=59)
 
     events = []
-    for event_cache_dir in event_cache_dirs:
-        for event_file in glob.glob(os.path.join(event_cache_dir, '*.json')):
+    for repo in repos:
+        assert repo and "/" in repo
+        dirname = cache_dir(o.cache_base, "event_cache", repo)
+        for event_file in glob.glob(os.path.join(dirname, '*.json')):
             with open(event_file, 'r') as f:
                 event_data = json.load(f)
                 if is_filtered_out(event_data, min_dt, max_dt):
@@ -114,22 +118,16 @@ if __name__ == "__main__":
     min_dt -= datetime.timedelta(days=min_dt.isoweekday()-1)
     max_dt = datetime.datetime.utcnow()
     
-    tornado.options.define("repo", default=None, type=str, help="user/repo to query", multiple=True)
+    tornado.options.define("repo", default=None, type=str, help="user/repo to query")
     tornado.options.define("min_dt", default=min_dt.strftime("%Y-%m-%d"), type=str, help="YYYY-MM-DD as start of changelog")
     tornado.options.define("max_dt", default=max_dt.strftime("%Y-%m-%d"), type=str, help="YYYY-MM-DD as end of changelog")
     tornado.options.define("actor", default=None, type=str, help="filter to events for this user")
     tornado.options.define("skip_event_type", default=["labeled", "head_ref_deleted", "referenced", "subscribed"], multiple=True)
-    tornado.options.define("event_cache_dir", type=str, help="directory to cache events")
+    tornado.options.define("cache_base", type=str, default="../repo_cache", help="base cache directory")
     tornado.options.parse_command_line()
     
     o = tornado.options.options
     logging.info('min_dt = %s', o.min_dt)
     assert o.repo
     event_cache_dirs = []
-    for repo in o.repo:
-        assert repo
-        event_cache_dir = o.event_cache_dir
-        if not event_cache_dir:
-            event_cache_dir = os.path.join("../repo_cache/event_cache", repo.replace("/","_"))
-        event_cache_dirs.append(event_cache_dir)
-    run(event_cache_dirs)
+    run(o.repo)
