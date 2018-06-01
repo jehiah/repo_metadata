@@ -129,7 +129,7 @@ def combine_features(feature, values):
 
 def load_comments():
     o = tornado.options.options
-    for dirname in [cache_dir(o.cache_base, "comment_cache", o.repo), cache_dir(o.cache_base, "comment_cache", o.repo)]:
+    for dirname in [cache_dir(o.cache_base, "comment_cache", o.repo), cache_dir(o.cache_base, "review_cache", o.repo)]:
         for filename in glob.glob(os.path.join(dirname, "*.json")):
             comment = json.loads(open(filename, 'r').read())
             yield comment
@@ -138,7 +138,7 @@ def load_comments():
 def comments_for_interval(interval):
     assert isinstance(interval, datetime.timedelta)
     min_dt = datetime.datetime.utcnow() - interval
-    for dirname in [cache_dir(o.cache_base, "comment_cache", o.repo), cache_dir(o.cache_base, "comment_cache", o.repo)]:
+    for dirname in [cache_dir(o.cache_base, "comment_cache", o.repo), cache_dir(o.cache_base, "review_cache", o.repo)]:
         for filename in glob.glob(os.path.join(dirname, "*.json")):
             comment = json.loads(open(filename, 'r').read())
             if _github_dt(comment["created_at"]) < min_dt:
@@ -155,7 +155,7 @@ def cached_issue_assignee(issue_number):
 
 def issue_assignee(issue_number):
     o = tornado.options.options
-    dirname = cache_dir(o.base, "issues_cache", o.repo)
+    dirname = cache_dir(o.cache_base, "issues_cache", o.repo)
     filename = os.path.join(dirname, issue_number + ".json")
     if not os.path.exists(filename):
         return None

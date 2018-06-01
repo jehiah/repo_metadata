@@ -6,12 +6,16 @@ import glob
 import logging
 from collections import defaultdict
 from operator import itemgetter
+
 from formatters import _github_dt
+from helpers import cache_dir
 
 
 
 def load_data():
-    for issue_file in glob.glob(os.path.join(tornado.options.options.issue_cache_dir, '*.json')):
+    o = tornado.options.options
+    dirname = cache_dir(o.cache_base, "issues_cache", o.repo)
+    for issue_file in glob.glob(os.path.join(dirname, '*.json')):
         with open(issue_file, 'r') as f:
             issue = json.load(f)
             if issue['state'] != 'open':
@@ -66,9 +70,12 @@ def build_table(records, f=None):
 
 
 if __name__ == "__main__":
-    tornado.options.define("issue_cache_dir", type=str, default="../repo_cache/issue_cache", help="directory to cache issues")
+    tornado.options.define("cache_base", type=str, default="../repo_cache", help="base cache directory")
+    tornado.options.define("repo", default=None, type=str, help="user/repo to query")
     tornado.options.parse_command_line()
     
+    o = tornado.options.options
+    assert o.repo
     records = list(load_data())
     
     print ""
