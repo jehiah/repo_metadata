@@ -1,6 +1,7 @@
 import json
 import tornado.options
 import datetime
+import logging
 import os
 import glob
 from collections import defaultdict
@@ -9,6 +10,13 @@ from operator import itemgetter
 from formatters import _github_dt
 from helpers import cache_dir
 
+def load_pr(issue_number):
+    dirname = cache_dir(o.cache_base, "pulls_cache", o.repo)
+    filename = os.path.join(dirname, "%s.json" % issue_number)
+    if not os.path.exists(filename):
+        return
+    with open(filename, 'r') as f:
+        return json.load(f)
 
 def load_data(min_dt):
     o = tornado.options.options
@@ -19,9 +27,17 @@ def load_data(min_dt):
             dt = _github_dt(issue['created_at'])
             if dt < min_dt:
                 continue
+
             login = issue["user"]["login"]
             for assignee in issue["assignees"]: # pick a random one?
                 login = assignee["login"]
+            
+            if o.skip_unmerged and issue['state'] == 'closed':
+                pr_data = load_pr(issue["number"])
+                if pr_data and not pr_data["merged_at"]:
+                    logging.info("skipping unmerged closed PR %s for %s - %s", issue["number"], login, issue["title"])
+                    continue
+            
             yield dict(
                 issue_number=issue["number"],
                 login=login,
@@ -66,6 +82,7 @@ if __name__ == "__main__":
     tornado.options.define("repo", default=None, type=str, help="user/repo to query")
     tornado.options.define("min_dt", type=str, default=datetime.datetime(2016,1,1).strftime('%Y-%m-%d'), help="YYYY-mm-dd")
     tornado.options.define("group_by", type=str, default="month", help="month|week")
+    tornado.options.define("skip_unmerged", type=bool, default=True, help="skip closed but unmerged PR's")
     tornado.options.parse_command_line()
     o = tornado.options.options
     
