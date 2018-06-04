@@ -118,7 +118,7 @@ if __name__ == "__main__":
     min_dt -= datetime.timedelta(days=min_dt.isoweekday()-1)
     max_dt = datetime.datetime.utcnow()
     
-    tornado.options.define("repo", default=None, type=str, help="user/repo to query")
+    tornado.options.define("repo", default=None, type=str, help="user/repo to query", multiple=True)
     tornado.options.define("min_dt", default=min_dt.strftime("%Y-%m-%d"), type=str, help="YYYY-MM-DD as start of changelog")
     tornado.options.define("max_dt", default=max_dt.strftime("%Y-%m-%d"), type=str, help="YYYY-MM-DD as end of changelog")
     tornado.options.define("actor", default=None, type=str, help="filter to events for this user")
