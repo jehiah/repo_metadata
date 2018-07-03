@@ -28,10 +28,12 @@ def cache_issues(raw_issues):
         open(filename, 'w').write(json.dumps(issue))
         updated_issues.add(issue['number'])
 
-def cache_issue(issue_number, repo, access_token):
-    issue_endpoint = (ISSUE_ENDPOINT % (repo, tornado.options.options.issue_type)) + urllib.urlencode(dict(access_token=access_token))
+def cache_issue(issue_number, access_token):
+    o = tornado.options.options
+    dirname = cache_dir(o.cache_base, "%s_cache" % o.issue_type, o.repo)
+    issue_endpoint = (ISSUE_ENDPOINT % (o.repo, o.issue_type)) + urllib.urlencode(dict(access_token=access_token))
     issue = fetch_one(issue_endpoint % issue_number)
-    filename = os.path.join(tornado.options.options.issue_cache_dir, "%d.json" % issue_number)
+    filename = os.path.join(dirname, "%d.json" % issue_number)
     if os.path.exists(filename):
         logging.warning('removing existing %s', filename)
         os.unlink(filename)
@@ -68,7 +70,7 @@ def run():
     
     if "stale" in o.state:
         for issue_number in stale_issues():
-            cache_issue(issue_number, o.repo, o.access_token)
+            cache_issue(issue_number, o.access_token)
 
     if "closed" in o.state:
         fetch_issues("closed", o.repo, o.access_token, o.limit)
