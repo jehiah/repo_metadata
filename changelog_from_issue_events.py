@@ -122,7 +122,7 @@ if __name__ == "__main__":
     tornado.options.define("min_dt", default=min_dt.strftime("%Y-%m-%d"), type=str, help="YYYY-MM-DD as start of changelog")
     tornado.options.define("max_dt", default=max_dt.strftime("%Y-%m-%d"), type=str, help="YYYY-MM-DD as end of changelog")
     tornado.options.define("actor", default=None, type=str, help="filter to events for this user")
-    tornado.options.define("skip_event_type", default=["labeled", "head_ref_deleted", "referenced", "subscribed", "unassigned"], multiple=True)
+    tornado.options.define("skip_event_type", default=["labeled", "head_ref_deleted", "referenced", "subscribed", "unassigned", "mentioned"], multiple=True)
     tornado.options.define("cache_base", type=str, default="../repo_cache", help="base cache directory")
     tornado.options.parse_command_line()
     
