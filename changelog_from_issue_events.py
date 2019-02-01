@@ -25,6 +25,8 @@ def _is_event_related(event, actor):
 
 
 def is_filtered_out(event, min_dt, max_dt):
+    if not event.get('issue'):
+        return True
     issue_number = event.get('issue',{}).get('number')
     if not issue_number:
         logging.warning('no issue number in %r', event)
