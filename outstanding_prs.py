@@ -62,9 +62,9 @@ def build_table(records, f=None):
         data[login].append(row_total)
         for i, x in enumerate(data[login]):
             total[i] += x
-        rows.append(["%14s" % login] + map(lambda x: "%3d" % x, data[login]))
-    rows.append(["%14s" % "TOTAL"] + map(lambda x: "%3d" % x, total))
-    return ["%14s " % "login", " <7d ", " <28d", ">=28d", "total"], rows
+        rows.append(["%20s" % login] + map(lambda x: "%3d" % x, data[login]))
+    rows.append(["%20s" % "TOTAL"] + map(lambda x: "%3d" % x, total))
+    return ["%20s " % "login", " <7d ", " <28d", ">=28d", "total"], rows
 
 
 
