@@ -33,6 +33,23 @@ def build_table(records, group_by, f=None):
     rows.append(["%14s" % "total"] + map(lambda x: col_format % sum(map(lambda xx: data[xx][x], data.keys())), columns) + [""])
     return ["%14s " % "login"] + map(lambda x: x[2:], columns) + [" avg"], rows
 
+_cache = {}
+def cached_issue_assignee(issue_number):
+    if issue_number not in _cache:
+        _cache[issue_number] = issue_assignee(issue_number)
+    return _cache[issue_number]
+
+def issue_assignee(issue_number):
+    o = tornado.options.options
+    dirname = cache_dir(o.cache_base, "issues_cache", o.repo)
+    filename = os.path.join(dirname, issue_number + ".json")
+    if not os.path.exists(filename):
+        return None
+    body = json.loads(open(filename, 'r').read())
+    user = (body.get('assignee', {}) or {}).get('login')
+    if not user:
+        user = (body.get('user', {}) or {}).get('login')
+    return user
 
 
 def load_data(min_dt):
@@ -44,10 +61,22 @@ def load_data(min_dt):
             if dt < min_dt:
                 logging.debug("skipping %s dt %s < %s", comment["id"], comment["created_at"], min_dt)
                 continue
+            issue_number = None
+            if comment.get('issue_url'):
+                issue_number = comment['issue_url'].split('/')[-1]
+            elif comment.get("_links",{}).get("pull_request"):
+                issue_number = comment["_links"]["pull_request"]["href"].split("/")[-1]
+            if not issue_number:
+                assert False, comment
+            if o.skip_self_comments:
+                if cached_issue_assignee(issue_number) == comment['user']['login']:
+                    continue
+            
             yield dict(
                 id=comment['id'],
                 created_at=dt,
                 login=comment['user']['login'],
+                issue_number=issue_number,
             )
 
 def group_by_column(dt):
@@ -61,6 +90,7 @@ if __name__ == "__main__":
     tornado.options.define("repo", default=None, type=str, help="user/repo to query")
     tornado.options.define("min_dt", type=str, default=datetime.datetime(2016,1,1).strftime('%Y-%m-%d'), help="YYYY-mm-dd")
     tornado.options.define("group_by", type=str, default="month", help="month|week")
+    tornado.options.define("skip_self_comments", type=bool, default=False)
     tornado.options.options.parse_command_line()
 
     o = tornado.options.options
