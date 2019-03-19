@@ -32,6 +32,13 @@ def load_data(min_dt):
             for assignee in issue["assignees"]: # pick a random one?
                 login = assignee["login"]
             
+            if not issue.get("pull_request"):
+                logging.debug("skipping ISSUE %s for %s - %s", issue["number"], login, issue["title"])
+                continue
+            
+            if o.login and o.login != login:
+                continue
+            
             if o.skip_unmerged and issue['state'] == 'closed':
                 pr_data = load_pr(issue["number"])
                 if pr_data and not pr_data["merged_at"]:
@@ -43,6 +50,7 @@ def load_data(min_dt):
                 login=login,
                 created_at=dt,
                 labels = map(itemgetter('name'), issue["labels"]),
+                title=issue["title"],
             )
 
 def build_table(records, group_by, f=None):
@@ -85,6 +93,7 @@ if __name__ == "__main__":
     tornado.options.define("min_dt", type=str, default=datetime.datetime(2016,1,1).strftime('%Y-%m-%d'), help="YYYY-mm-dd")
     tornado.options.define("group_by", type=str, default="month", help="month|week")
     tornado.options.define("skip_unmerged", type=bool, default=True, help="skip closed but unmerged PR's")
+    tornado.options.define("login", type=str, default=None)
     tornado.options.parse_command_line()
     o = tornado.options.options
     
@@ -93,6 +102,9 @@ if __name__ == "__main__":
     
     min_dt = datetime.datetime.strptime(o.min_dt, '%Y-%m-%d')
     records = list(load_data(min_dt))
+    for record in records:
+        logging.debug("PR %s for %s - %s", record["issue_number"], record["login"], record["title"])
+        
     
     print ""
     print "PR's by assignee by month created"
