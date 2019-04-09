@@ -42,7 +42,7 @@ def load_data(min_dt):
             if o.skip_unmerged and issue['state'] == 'closed':
                 pr_data = load_pr(issue["number"])
                 if pr_data and not pr_data["merged_at"]:
-                    logging.info("skipping unmerged closed PR %s for %s - %s", issue["number"], login, issue["title"])
+                    logging.debug("skipping unmerged closed PR %s for %s - %s", issue["number"], login, issue["title"])
                     continue
             
             yield dict(
@@ -74,7 +74,7 @@ def build_table(records, group_by, f=None):
     
     columns = sorted(columns)
     rows = []
-    for login in sorted(data.keys()):
+    for login in sorted(data.keys(), key=unicode.lower):
         total = sum(data[login].values()) / len(columns)
         rows.append(["%20s" % login] + map(lambda x: col_format % data[login][x] if data[login][x] else empty_format, columns) + [col_format % total])
     rows.append(["%20s" % "total"] + map(lambda x: col_format % sum(map(lambda xx: data[xx][x], data.keys())), columns) + [""])
@@ -93,6 +93,7 @@ if __name__ == "__main__":
     tornado.options.define("min_dt", type=str, default=datetime.datetime(2016,1,1).strftime('%Y-%m-%d'), help="YYYY-mm-dd")
     tornado.options.define("group_by", type=str, default="month", help="month|week")
     tornado.options.define("skip_unmerged", type=bool, default=True, help="skip closed but unmerged PR's")
+    tornado.options.define("bug_report", type=bool, default=False, help="show summary of 'bug' PR's")
     tornado.options.define("login", type=str, default=None)
     tornado.options.parse_command_line()
     o = tornado.options.options
@@ -113,11 +114,12 @@ if __name__ == "__main__":
     for row in rows:
         print " | ".join(row)
 
-    print ""
-    print "PR's with \"bug\" label by assignee by month created"
-    columns, rows = build_table(records, o.group_by, lambda x: 'bug' in x['labels'])
-    print "|".join(columns)
-    for row in rows:
-        print " | ".join(row)
+    if o.bug_report:
+        print ""
+        print "PR's with \"bug\" label by assignee by month created"
+        columns, rows = build_table(records, o.group_by, lambda x: 'bug' in x['labels'])
+        print "|".join(columns)
+        for row in rows:
+            print " | ".join(row)
     
     

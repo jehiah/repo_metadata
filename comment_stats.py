@@ -29,7 +29,7 @@ def build_table(records, group_by, f=None):
     
     columns = sorted(columns)
     rows = []
-    for login in sorted(data.keys()):
+    for login in sorted(data.keys(), key=unicode.lower):
         total = sum(data[login].values()) / len(columns)
         rows.append(["%20s" % login] + map(lambda x: col_format % data[login][x] if data[login][x] else empty_format, columns) + [col_format % total])
     rows.append(["%20s" % "total"] + map(lambda x: col_format % sum(map(lambda xx: data[xx][x], data.keys())), columns) + [""])
