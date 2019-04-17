@@ -21,18 +21,22 @@ def build_table(records, group_by, f=None):
     for datasets in data.values():
         columns |= set(datasets.keys())
     
-    col_format = "%3d"
-    empty_format = "  ."
+    col_format = "%4d"
+    empty_format = "   ."
+    dash_format = "----"
     if group_by == "week":
         col_format = "%6d"
         empty_format = "     ."
+        dash_format = "------"
     
     columns = sorted(columns)
     rows = []
     for login in sorted(data.keys(), key=unicode.lower):
         total = sum(data[login].values()) / len(columns)
         rows.append(["%20s" % login] + map(lambda x: col_format % data[login][x] if data[login][x] else empty_format, columns) + [col_format % total])
+    rows.append(["%20s" % "-----"] + map(lambda x: dash_format, columns) + [dash_format])
     rows.append(["%20s" % "total"] + map(lambda x: col_format % sum(map(lambda xx: data[xx][x], data.keys())), columns) + [""])
+    rows.append(["%20s" % "uniq"] + map(lambda x: col_format % sum(map(lambda xx: 1 if data[xx][x] else 0, data.keys())), columns) + [""])
     return ["%20s " % "login"] + map(lambda x: x[2:], columns) + [" avg"], rows
 
 _cache = {}
