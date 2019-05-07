@@ -32,7 +32,7 @@ def build_table(records, group_by, f=None):
     columns = sorted(columns)
     rows = []
     for login in sorted(data.keys(), key=unicode.lower):
-        total = sum(data[login].values()) / len(columns)
+        total = sum(data[login].values()) / len(filter(lambda x: True if x is not None else False, data[login].values()))
         rows.append(["%20s" % login] + map(lambda x: col_format % data[login][x] if data[login][x] else empty_format, columns) + [col_format % total])
     rows.append(["%20s" % "-----"] + map(lambda x: dash_format, columns) + [dash_format])
     rows.append(["%20s" % "total"] + map(lambda x: col_format % sum(map(lambda xx: data[xx][x], data.keys())), columns) + [""])
