@@ -24,9 +24,8 @@ def cache_events(raw_events, repo):
         open(filename, 'w').write(json.dumps(event))
 
 def run(repo):
-    token = tornado.options.options.access_token
     endpoint = ISSUES_ENDPOINT % repo
-    url = endpoint + urllib.urlencode(dict(access_token=token, per_page=100))
+    url = endpoint + urllib.urlencode(dict(per_page=100))
     logging.info('fetching events for %r', repo)
     fetch_all(url, limit=tornado.options.options.limit, callback=functools.partial(cache_events, repo=repo))
 

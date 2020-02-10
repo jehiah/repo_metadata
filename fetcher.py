@@ -1,14 +1,31 @@
 import json
 import tornado.httpclient
+import tornado.options
 import logging
+import platform
+import tornado
 
 from helpers import get_link
 
+_user_agent = "python/%(python_version)s tornadoweb/%(tornado_version)s (https://github.com/jehiah/repo_metadata)" % dict(
+    python_version=platform.python_version(),
+    tornado_version=tornado.version,
+)
+
+
 def fetch_one(url):
     http = tornado.httpclient.HTTPClient()
-    resp = http.fetch(url, user_agent='issue fetcher (tornado/httpclient)')
+    resp = http.fetch(url, user_agent=_user_agent, headers=github_auth_headers())
     return json.loads(resp.body)
     
+
+def github_auth_headers(headers=None):
+    headers = headers or {}
+    token = tornado.options.options.access_token
+    assert token
+    headers['Authorization'] = "token %s" % token
+    return headers
+
 
 def fetch_all(url, limit=None, headers=None, callback=None):
     o = []
@@ -16,7 +33,7 @@ def fetch_all(url, limit=None, headers=None, callback=None):
     http = tornado.httpclient.HTTPClient()
     for x in range(80):
         try:
-            resp = http.fetch(url, user_agent='issue fetcher (tornado/httpclient)', headers=headers)
+            resp = http.fetch(url, user_agent=_user_agent, headers=github_auth_headers(headers))
         except tornado.httpclient.HTTPError, e:
             logging.error('failed %r %r', e.response.body, e.response)
             raise e

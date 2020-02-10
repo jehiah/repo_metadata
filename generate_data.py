@@ -67,12 +67,11 @@ def cache_issues(raw_issues):
 
 def run():
     global endpoint
-    token = tornado.options.options.access_token
     endpoint = endpoint % tornado.options.options.repo
-    url = endpoint + urllib.urlencode(dict(access_token=token, per_page=100, filter='all', state='closed'))
+    url = endpoint + urllib.urlencode(dict(per_page=100, filter='all', state='closed'))
     logging.info('fetching closed issues for %r', tornado.options.options.repo)
     raw_issues = fetch_all(url)
-    url = endpoint + urllib.urlencode(dict(access_token=token, per_page=100, filter='all', state='open'))
+    url = endpoint + urllib.urlencode(dict(per_page=100, filter='all', state='open'))
     logging.info('fetching open issues for %r', tornado.options.options.repo)
     raw_issues += fetch_all(url)
     logging.debug(len(raw_issues))

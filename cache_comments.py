@@ -27,10 +27,8 @@ def cache_comments(raw_comments):
 
 def run():
     global endpoint
-    token = tornado.options.options.access_token
     endpoint = _ENDPOINT_PATTERN % (tornado.options.options.repo, tornado.options.options.comment_type)
-    url = endpoint + urllib.urlencode(dict(access_token=token, 
-        per_page=tornado.options.options.per_page, 
+    url = endpoint + urllib.urlencode(dict(per_page=tornado.options.options.per_page, 
         direction=tornado.options.options.direction, 
         since=tornado.options.options.since))
     logging.info('fetching comments for %r', tornado.options.options.repo)

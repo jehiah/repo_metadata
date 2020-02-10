@@ -31,7 +31,7 @@ def cache_issues(raw_issues):
 def cache_issue(issue_number, access_token):
     o = tornado.options.options
     dirname = cache_dir(o.cache_base, "%s_cache" % o.issue_type, o.repo)
-    issue_endpoint = (ISSUE_ENDPOINT % (o.repo, o.issue_type)) + urllib.urlencode(dict(access_token=access_token))
+    issue_endpoint = (ISSUE_ENDPOINT % (o.repo, o.issue_type))
     issue = fetch_one(issue_endpoint % issue_number)
     filename = os.path.join(dirname, "%d.json" % issue_number)
     if os.path.exists(filename):
@@ -53,8 +53,8 @@ def stale_issues():
     logging.info('found %d possibly stale cached open issues', len(stale))
     return stale
 
-def fetch_issues(state, repo, access_token, limit):
-    url = endpoint + urllib.urlencode(dict(access_token=access_token, per_page=100, filter='all', state=state))
+def fetch_issues(state, repo, limit):
+    url = endpoint + urllib.urlencode(dict(per_page=100, filter='all', state=state))
     logging.info('fetching %s issues for %r', state, repo)
     raw_issues = fetch_all(url, limit=limit, callback=cache_issues)
     logging.info("got %d %s issues", len(raw_issues), state)
@@ -66,7 +66,7 @@ def run():
     endpoint = endpoint % (o.repo, o.issue_type)
 
     if "open" in o.state:
-        fetch_issues("open", o.repo, o.access_token, o.limit)
+        fetch_issues("open", o.repo, o.limit)
     
     if "stale" in o.state:
         for issue_number in stale_issues():
