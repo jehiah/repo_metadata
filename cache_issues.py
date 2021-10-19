@@ -28,7 +28,7 @@ def cache_issues(raw_issues):
         open(filename, 'w').write(json.dumps(issue))
         updated_issues.add(issue['number'])
 
-def cache_issue(issue_number, access_token):
+def cache_issue(issue_number):
     o = tornado.options.options
     dirname = cache_dir(o.cache_base, "%s_cache" % o.issue_type, o.repo)
     issue_endpoint = (ISSUE_ENDPOINT % (o.repo, o.issue_type))
@@ -70,10 +70,10 @@ def run():
     
     if "stale" in o.state:
         for issue_number in stale_issues():
-            cache_issue(issue_number, o.access_token)
+            cache_issue(issue_number)
 
     if "closed" in o.state:
-        fetch_issues("closed", o.repo, o.access_token, o.limit)
+        fetch_issues("closed", o.repo, o.limit)
 
 if __name__ == "__main__":
     tornado.options.define("repo", default=None, type=str, help="user/repo to query")
