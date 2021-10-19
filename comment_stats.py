@@ -37,7 +37,7 @@ def build_table(records, group_by, f=None):
     rows.append(["%20s" % "-----"] + map(lambda x: dash_format, columns) + [dash_format])
     rows.append(["%20s" % "total"] + map(lambda x: col_format % sum(map(lambda xx: data[xx][x], data.keys())), columns) + [""])
     rows.append(["%20s" % "uniq"] + map(lambda x: col_format % sum(map(lambda xx: 1 if data[xx][x] else 0, data.keys())), columns) + [""])
-    return ["%20s " % "login"] + map(lambda x: x[2:], columns) + [" avg"], rows
+    return ["%20s " % "login"] + map(lambda x: "%6s" % x[2:], columns) + [" avg"], rows
 
 _cache = {}
 def cached_issue_assignee(issue_number):
