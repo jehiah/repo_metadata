@@ -31,7 +31,7 @@ def fetch_all(url, limit=None, headers=None, callback=None):
     o = []
     headers = headers or {}
     http = tornado.httpclient.HTTPClient()
-    for x in range(80):
+    for x in range(300):
         try:
             resp = http.fetch(url, user_agent=_user_agent, headers=github_auth_headers(headers))
         except tornado.httpclient.HTTPError, e:

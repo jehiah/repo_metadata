@@ -54,7 +54,7 @@ def stale_issues():
     return stale
 
 def fetch_issues(state, repo, limit):
-    url = endpoint + urllib.urlencode(dict(per_page=100, filter='all', state=state))
+    url = endpoint + urllib.urlencode(dict(per_page=100, filter="all", state=state))
     logging.info('fetching %s issues for %r', state, repo)
     raw_issues = fetch_all(url, limit=limit, callback=cache_issues)
     logging.info("got %d %s issues", len(raw_issues), state)

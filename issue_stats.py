@@ -18,7 +18,7 @@ def load_pr(issue_number):
     with open(filename, 'r') as f:
         return json.load(f)
 
-def load_data(min_dt):
+def load_data(min_dt, max_dt):
     o = tornado.options.options
     dirname = cache_dir(o.cache_base, "issues_cache", o.repo)
     for issue_file in glob.glob(os.path.join(dirname, '*.json')):
@@ -26,6 +26,8 @@ def load_data(min_dt):
             issue = json.load(f)
             dt = _github_dt(issue['created_at'])
             if dt < min_dt:
+                continue
+            if dt > max_dt:
                 continue
 
             login = issue["user"]["login"]
@@ -94,7 +96,8 @@ def group_by_column(dt):
 if __name__ == "__main__":
     tornado.options.define("cache_base", type=str, default="../repo_cache", help="base cache directory")
     tornado.options.define("repo", default=None, type=str, help="user/repo to query")
-    tornado.options.define("min_dt", type=str, default=datetime.datetime(2016,1,1).strftime('%Y-%m-%d'), help="YYYY-mm-dd")
+    tornado.options.define("min_dt", type=str, default=datetime.datetime(2020,1,1).strftime('%Y-%m-%d'), help="YYYY-mm-dd")
+    tornado.options.define("max_dt", type=str, default=datetime.datetime.utcnow().strftime('%Y-%m-%d'), help="YYYY-mm-dd")
     tornado.options.define("group_by", type=str, default="month", help="month|week")
     tornado.options.define("skip_unmerged", type=bool, default=True, help="skip closed but unmerged PR's")
     tornado.options.define("bug_report", type=bool, default=False, help="show summary of 'bug' PR's")
@@ -106,7 +109,8 @@ if __name__ == "__main__":
     assert o.repo
     
     min_dt = datetime.datetime.strptime(o.min_dt, '%Y-%m-%d')
-    records = list(load_data(min_dt))
+    max_dt = datetime.datetime.strptime(o.max_dt, '%Y-%m-%d')
+    records = list(load_data(min_dt, max_dt))
     for record in records:
         logging.debug("PR %s for %s - %s", record["issue_number"], record["login"], record["title"])
         

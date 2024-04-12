@@ -25,7 +25,7 @@ def cache_events(raw_events, repo):
 
 def run(repo):
     endpoint = ISSUES_ENDPOINT % repo
-    url = endpoint + urllib.urlencode(dict(per_page=100))
+    url = endpoint + urllib.urlencode(dict(per_page=250))
     logging.info('fetching events for %r', repo)
     fetch_all(url, limit=tornado.options.options.limit, callback=functools.partial(cache_events, repo=repo))
 
